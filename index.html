@@ -82,40 +82,63 @@
     padding: 4px;
   }
   .grid {
+    --seam: #0e0a24;
     width: 100%;
     aspect-ratio: 1 / 1;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
-    gap: 8px;
+    gap: 0;
+    padding: 1px 0 0 1px;        /* top + left outer seams */
+    background: var(--seam);     /* shows through padding */
+    border-radius: 14px;
+    overflow: hidden;
     position: relative;
+    box-shadow: 0 6px 0 rgba(0,0,0,0.25), 0 0 0 2px rgba(255,255,255,0.08);
   }
   .tile {
-    border-radius: 12px;
     background-image: url('puzzle.svg');
     background-size: 300% 300%;
     background-repeat: no-repeat;
-    border: 2px solid var(--tile-border);
-    box-shadow: 0 4px 0 rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.15);
+    /* right + bottom 1px seam, drawn inside each tile */
+    box-shadow: inset -1px -1px 0 var(--seam);
     cursor: grab;
     touch-action: none;
     will-change: transform, background-position;
+    position: relative;
   }
+  /* merge: hide the seam between two correctly-relative tiles */
+  .tile.merged-right { box-shadow: inset 0 -1px 0 var(--seam); }
+  .tile.merged-down  { box-shadow: inset -1px 0 0 var(--seam); }
+  .tile.merged-right.merged-down { box-shadow: none; }
+
   .tile.pressing {
-    transform: scale(1.04);
-    box-shadow:
-      0 6px 0 rgba(0,0,0,0.22),
-      0 0 0 2px rgba(255, 199, 60, 0.55),
-      inset 0 0 0 1px rgba(255,255,255,0.3);
-    transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+    transform: scale(1.03);
     z-index: 3;
+    transition: transform 90ms ease-out;
+  }
+  .tile.dragging {
+    z-index: 10;
+    cursor: grabbing;
+    /* drop shadow plus full seam borders (lifted out of any merge) */
+    box-shadow:
+      inset -1px -1px 0 var(--seam),
+      inset 1px 0 0 var(--seam),
+      inset 0 1px 0 var(--seam),
+      0 14px 28px rgba(0,0,0,0.45);
+    filter: brightness(1.05);
+  }
+  .tile.drop-target {
+    box-shadow:
+      inset -1px -1px 0 var(--seam),
+      inset 0 0 0 3px var(--gold);
   }
   .tile.hint-flash {
     animation: hintFlash 0.9s ease-in-out;
   }
   @keyframes hintFlash {
-    0%, 100% { box-shadow: 0 4px 0 rgba(0,0,0,0.18); }
-    50% { box-shadow: 0 0 0 4px var(--gold), 0 0 24px rgba(255,199,60,0.8); }
+    0%, 100% { box-shadow: inset -1px -1px 0 var(--seam); }
+    50% { box-shadow: inset 0 0 0 3px var(--gold), 0 0 18px rgba(255,199,60,0.8); }
   }
   .tile.locked {
     pointer-events: none;
@@ -267,12 +290,12 @@
   const undoBtn = document.getElementById('undoBtn');
   const ctaBtn = document.getElementById('ctaBtn');
 
-  // slot -> correctIndex mapping. tiles[i] = the correctIndex of the artwork in slot i.
+  // tiles[slot] = correctIndex of the artwork piece currently in that slot.
   let tiles = [];
   let history = [];
   let solved = false;
   let animating = false;
-  const SWIPE_THRESHOLD = 16; // px
+  const DRAG_THRESHOLD = 6; // px before we lift the tile
 
   function bgPositionFor(correctIndex) {
     const col = correctIndex % GRID;
@@ -288,9 +311,10 @@
       t.className = 'tile';
       t.dataset.slot = slot;
       t.style.backgroundPosition = bgPositionFor(correctIndex);
-      attachSwipe(t, slot);
+      attachDrag(t);
       grid.appendChild(t);
     });
+    updateMergeState();
   }
 
   function shuffle() {
@@ -311,99 +335,121 @@
     return grid.querySelector(`.tile[data-slot="${slot}"]`);
   }
 
-  function neighborOf(slot, dir) {
-    const row = Math.floor(slot / GRID);
-    const col = slot % GRID;
-    let nr = row, nc = col;
-    if (dir === 'up') nr--;
-    else if (dir === 'down') nr++;
-    else if (dir === 'left') nc--;
-    else if (dir === 'right') nc++;
-    if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) return null;
-    return nr * GRID + nc;
+  // Update which tiles "merge" with their right/bottom neighbor.
+  // Merge = tile at slot S has correctIndex C, and the slot to its right
+  // contains correctIndex C+1 (and C is not on the rightmost column of the
+  // source image). Same idea for vertical with C+GRID.
+  function updateMergeState() {
+    for (let slot = 0; slot < TOTAL; slot++) {
+      const el = getTileEl(slot);
+      if (!el) continue;
+      el.classList.remove('merged-right', 'merged-down');
+      const c = tiles[slot];
+      const row = Math.floor(slot / GRID);
+      const col = slot % GRID;
+      // horizontal merge with right neighbor
+      if (col < GRID - 1 && (c % GRID) < GRID - 1) {
+        if (tiles[slot + 1] === c + 1) el.classList.add('merged-right');
+      }
+      // vertical merge with bottom neighbor
+      if (row < GRID - 1 && c < TOTAL - GRID) {
+        if (tiles[slot + GRID] === c + GRID) el.classList.add('merged-down');
+      }
+    }
   }
 
-  function attachSwipe(el, slot) {
-    let pid = null, startX = 0, startY = 0, committed = false;
+  function attachDrag(el) {
+    let pid = null;
+    let startX = 0, startY = 0;
+    let dragging = false;
 
     el.addEventListener('pointerdown', (e) => {
       if (solved || animating || pid !== null) return;
       pid = e.pointerId;
       startX = e.clientX;
       startY = e.clientY;
-      committed = false;
+      dragging = false;
       try { el.setPointerCapture(pid); } catch (_) {}
       el.classList.add('pressing');
     });
 
     el.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== pid || committed) return;
+      if (e.pointerId !== pid) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
-      committed = true;
-      const dir = Math.abs(dx) > Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down' : 'up');
-      el.classList.remove('pressing');
-      handleSwipe(slot, dir);
+      if (!dragging) {
+        if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+        dragging = true;
+        el.classList.remove('pressing');
+        el.classList.add('dragging');
+      }
+      el.style.transform = `translate(${dx}px, ${dy}px) scale(1.08)`;
+      // hit-test under the finger for a drop target
+      el.style.pointerEvents = 'none';
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+      el.style.pointerEvents = '';
+      grid.querySelectorAll('.tile.drop-target').forEach(t => {
+        if (t !== over) t.classList.remove('drop-target');
+      });
+      if (over && over !== el && over.classList && over.classList.contains('tile')) {
+        over.classList.add('drop-target');
+      }
     });
 
     const finish = (e) => {
       if (e.pointerId !== pid) return;
       pid = null;
-      el.classList.remove('pressing');
+      if (!dragging) {
+        el.classList.remove('pressing');
+        return;
+      }
+      el.classList.remove('dragging');
+      el.style.pointerEvents = 'none';
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+      el.style.pointerEvents = '';
+      grid.querySelectorAll('.tile.drop-target').forEach(t => t.classList.remove('drop-target'));
+      const fromSlot = +el.dataset.slot;
+      if (over && over !== el && over.classList && over.classList.contains('tile')) {
+        const toSlot = +over.dataset.slot;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        swap(fromSlot, toSlot, { dragDx: dx, dragDy: dy });
+      } else {
+        // snap back
+        el.style.transition = 'transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+        el.style.transform = '';
+        setTimeout(() => { el.style.transition = ''; }, 240);
+      }
     };
     el.addEventListener('pointerup', finish);
     el.addEventListener('pointercancel', finish);
     el.addEventListener('lostpointercapture', finish);
   }
 
-  function handleSwipe(slot, dir) {
-    const neighbor = neighborOf(slot, dir);
-    if (neighbor === null) {
-      bounceEdge(slot, dir);
-      return;
-    }
-    swap(slot, neighbor);
-  }
-
-  function bounceEdge(slot, dir) {
-    const el = getTileEl(slot);
-    const map = {
-      up: 'translateY(-10px)',
-      down: 'translateY(10px)',
-      left: 'translateX(-10px)',
-      right: 'translateX(10px)',
-    };
-    el.style.transition = 'transform 130ms ease-out';
-    el.style.transform = map[dir];
-    setTimeout(() => {
-      el.style.transition = 'transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1)';
-      el.style.transform = '';
-      setTimeout(() => { el.style.transition = ''; }, 200);
-    }, 130);
-  }
-
-  function swap(a, b, fromUndo = false) {
-    if (animating) return;
+  // Swap the artwork between two slots, with a slide animation.
+  // dragDx / dragDy: if the source tile is currently mid-drag, the offset
+  // from its grid origin so the animation continues smoothly from finger pos.
+  function swap(a, b, { fromUndo = false, dragDx = 0, dragDy = 0 } = {}) {
+    if (animating || a === b) return;
     animating = true;
     const ea = getTileEl(a), eb = getTileEl(b);
     const rA = ea.getBoundingClientRect();
     const rB = eb.getBoundingClientRect();
-    const dx = rB.left - rA.left;
-    const dy = rB.top - rA.top;
+    // ea's grid origin is at (rA.left - dragDx, rA.top - dragDy)
+    const finalEaDx = rB.left - rA.left + dragDx;
+    const finalEaDy = rB.top - rA.top + dragDy;
+    const finalEbDx = rA.left - dragDx - rB.left;
+    const finalEbDy = rA.top - dragDy - rB.top;
 
-    ea.style.zIndex = '2';
+    ea.style.zIndex = '4';
     ea.style.transition = 'transform 220ms cubic-bezier(0.4, 0.0, 0.2, 1)';
     eb.style.transition = 'transform 220ms cubic-bezier(0.4, 0.0, 0.2, 1)';
-    ea.style.transform = `translate(${dx}px, ${dy}px)`;
-    eb.style.transform = `translate(${-dx}px, ${-dy}px)`;
+    ea.style.transform = `translate(${finalEaDx}px, ${finalEaDy}px)`;
+    eb.style.transform = `translate(${finalEbDx}px, ${finalEbDy}px)`;
 
     setTimeout(() => {
       [tiles[a], tiles[b]] = [tiles[b], tiles[a]];
       if (!fromUndo) history.push([a, b]);
-      // snap both back to their grid cells, now showing the swapped artwork
       ea.style.transition = 'none';
       eb.style.transition = 'none';
       ea.style.transform = '';
@@ -411,9 +457,10 @@
       ea.style.zIndex = '';
       ea.style.backgroundPosition = bgPositionFor(tiles[a]);
       eb.style.backgroundPosition = bgPositionFor(tiles[b]);
-      void ea.offsetWidth; // force reflow before re-enabling transitions
+      void ea.offsetWidth;
       ea.style.transition = '';
       eb.style.transition = '';
+      updateMergeState();
       animating = false;
       if (isSolved()) handleWin();
     }, 220);
@@ -460,9 +507,9 @@
   });
 
   undoBtn.addEventListener('click', () => {
-    if (solved || !history.length) return;
+    if (solved || animating || !history.length) return;
     const [a, b] = history.pop();
-    swap(a, b, true);
+    swap(a, b, { fromUndo: true });
   });
 
   ctaBtn.addEventListener('click', () => {
