@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PicMerge</title>
+<style>
+  :root {
+    --bg: #6B5BB7;
+    --bg-deep: #5849a3;
+    --tile-border: rgba(255,255,255,0.55);
+    --gold: #FFC73C;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    color: #fff;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  #app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 4px 20px;
+  }
+  .icon-btn {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.95);
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.15);
+    cursor: pointer;
+    color: var(--bg-deep);
+    font-size: 22px;
+  }
+  .level {
+    font-size: 28px;
+    font-weight: 800;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.18);
+    letter-spacing: 0.5px;
+  }
+  .coins {
+    display: flex; align-items: center; gap: 6px;
+    background: #2c2452;
+    border-radius: 999px;
+    padding: 6px 14px 6px 6px;
+    font-weight: 700;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.2);
+  }
+  .coin {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #FFE27A, #E2A20D 70%, #8a5a00);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #6a4500;
+    font-weight: 900;
+  }
+
+  /* Puzzle */
+  .stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+  }
+  .grid {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 8px;
+    position: relative;
+  }
+  .tile {
+    border-radius: 12px;
+    background-image: url('puzzle.svg');
+    background-size: 300% 300%;
+    background-repeat: no-repeat;
+    border: 2px solid var(--tile-border);
+    box-shadow: 0 4px 0 rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.15);
+    cursor: grab;
+    touch-action: none;
+    will-change: transform, background-position;
+  }
+  .tile.pressing {
+    transform: scale(1.04);
+    box-shadow:
+      0 6px 0 rgba(0,0,0,0.22),
+      0 0 0 2px rgba(255, 199, 60, 0.55),
+      inset 0 0 0 1px rgba(255,255,255,0.3);
+    transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+    z-index: 3;
+  }
+  .tile.hint-flash {
+    animation: hintFlash 0.9s ease-in-out;
+  }
+  @keyframes hintFlash {
+    0%, 100% { box-shadow: 0 4px 0 rgba(0,0,0,0.18); }
+    50% { box-shadow: 0 0 0 4px var(--gold), 0 0 24px rgba(255,199,60,0.8); }
+  }
+  .tile.locked {
+    pointer-events: none;
+  }
+
+  /* Footer */
+  .footer {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    padding: 14px 0 8px;
+  }
+  .tool {
+    position: relative;
+    width: 64px; height: 64px;
+    background: #efe9ff;
+    border-radius: 18px;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+    cursor: pointer;
+    font-size: 30px;
+  }
+  .tool:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.2); }
+  .badge {
+    position: absolute;
+    top: -6px; right: -6px;
+    min-width: 22px; height: 22px;
+    border-radius: 11px;
+    background: #6B5BB7;
+    color: #fff;
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid #fff;
+    padding: 0 5px;
+  }
+
+  /* Win overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 12, 50, 0.78);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 350ms ease;
+    z-index: 20;
+  }
+  .overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .card {
+    background: linear-gradient(180deg, #ffffff, #f1ecff);
+    color: #2c2452;
+    border-radius: 24px;
+    padding: 28px 26px 24px;
+    width: 86%;
+    max-width: 340px;
+    text-align: center;
+    box-shadow: 0 14px 0 rgba(0,0,0,0.25);
+    transform: scale(0.85);
+    transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .overlay.show .card { transform: scale(1); }
+  .card h2 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    color: #6B5BB7;
+  }
+  .card p {
+    margin: 0 0 18px;
+    color: #5a517a;
+    font-size: 15px;
+  }
+  .preview {
+    width: 70%;
+    aspect-ratio: 1;
+    margin: 0 auto 18px;
+    border-radius: 16px;
+    background: url('puzzle.svg') center/cover no-repeat;
+    box-shadow: 0 6px 0 rgba(0,0,0,0.12), inset 0 0 0 3px #fff;
+  }
+  .cta {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #58c750, #2f9c2a);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #1c6418;
+    letter-spacing: 0.3px;
+  }
+  .cta:active { transform: translateY(2px); box-shadow: 0 3px 0 #1c6418; }
+
+  /* Sparkles on win */
+  .sparkle {
+    position: absolute;
+    width: 10px; height: 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: sparkle 800ms ease-out forwards;
+  }
+  @keyframes sparkle {
+    0% { transform: translate(0,0) scale(0.4); opacity: 1; }
+    100% { transform: var(--end) scale(1.2); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <button class="icon-btn" aria-label="Settings">⚙</button>
+    <div class="level">Level 1</div>
+    <div class="coins"><span class="coin">$</span><span>49</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="footer">
+    <button class="tool" id="hintBtn" aria-label="Hint">💡<span class="badge">3</span></button>
+    <button class="tool" id="undoBtn" aria-label="Undo">↶<span class="badge">3</span></button>
+  </div>
+</div>
+
+<div class="overlay" id="winOverlay">
+  <div class="card">
+    <div class="preview"></div>
+    <h2>Puzzle Solved!</h2>
+    <p>Unlock 1,000+ pictures.<br>Play the full game now.</p>
+    <button class="cta" id="ctaBtn">INSTALL FREE</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const GRID = 3;
+  const TOTAL = GRID * GRID;
+  const grid = document.getElementById('grid');
+  const winOverlay = document.getElementById('winOverlay');
+  const hintBtn = document.getElementById('hintBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const ctaBtn = document.getElementById('ctaBtn');
+
+  // slot -> correctIndex mapping. tiles[i] = the correctIndex of the artwork in slot i.
+  let tiles = [];
+  let history = [];
+  let solved = false;
+  let animating = false;
+  const SWIPE_THRESHOLD = 16; // px
+
+  function bgPositionFor(correctIndex) {
+    const col = correctIndex % GRID;
+    const row = Math.floor(correctIndex / GRID);
+    const step = 100 / (GRID - 1);
+    return `${col * step}% ${row * step}%`;
+  }
+
+  function render() {
+    grid.innerHTML = '';
+    tiles.forEach((correctIndex, slot) => {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      t.dataset.slot = slot;
+      t.style.backgroundPosition = bgPositionFor(correctIndex);
+      attachSwipe(t, slot);
+      grid.appendChild(t);
+    });
+  }
+
+  function shuffle() {
+    do {
+      tiles = Array.from({ length: TOTAL }, (_, i) => i);
+      for (let i = tiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+      }
+    } while (isSolved());
+  }
+
+  function isSolved() {
+    return tiles.every((c, i) => c === i);
+  }
+
+  function getTileEl(slot) {
+    return grid.querySelector(`.tile[data-slot="${slot}"]`);
+  }
+
+  function neighborOf(slot, dir) {
+    const row = Math.floor(slot / GRID);
+    const col = slot % GRID;
+    let nr = row, nc = col;
+    if (dir === 'up') nr--;
+    else if (dir === 'down') nr++;
+    else if (dir === 'left') nc--;
+    else if (dir === 'right') nc++;
+    if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) return null;
+    return nr * GRID + nc;
+  }
+
+  function attachSwipe(el, slot) {
+    let pid = null, startX = 0, startY = 0, committed = false;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (solved || animating || pid !== null) return;
+      pid = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      committed = false;
+      try { el.setPointerCapture(pid); } catch (_) {}
+      el.classList.add('pressing');
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== pid || committed) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+      committed = true;
+      const dir = Math.abs(dx) > Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down' : 'up');
+      el.classList.remove('pressing');
+      handleSwipe(slot, dir);
+    });
+
+    const finish = (e) => {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      el.classList.remove('pressing');
+    };
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', finish);
+    el.addEventListener('lostpointercapture', finish);
+  }
+
+  function handleSwipe(slot, dir) {
+    const neighbor = neighborOf(slot, dir);
+    if (neighbor === null) {
+      bounceEdge(slot, dir);
+      return;
+    }
+    swap(slot, neighbor);
+  }
+
+  function bounceEdge(slot, dir) {
+    const el = getTileEl(slot);
+    const map = {
+      up: 'translateY(-10px)',
+      down: 'translateY(10px)',
+      left: 'translateX(-10px)',
+      right: 'translateX(10px)',
+    };
+    el.style.transition = 'transform 130ms ease-out';
+    el.style.transform = map[dir];
+    setTimeout(() => {
+      el.style.transition = 'transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+      el.style.transform = '';
+      setTimeout(() => { el.style.transition = ''; }, 200);
+    }, 130);
+  }
+
+  function swap(a, b, fromUndo = false) {
+    if (animating) return;
+    animating = true;
+    const ea = getTileEl(a), eb = getTileEl(b);
+    const rA = ea.getBoundingClientRect();
+    const rB = eb.getBoundingClientRect();
+    const dx = rB.left - rA.left;
+    const dy = rB.top - rA.top;
+
+    ea.style.zIndex = '2';
+    ea.style.transition = 'transform 220ms cubic-bezier(0.4, 0.0, 0.2, 1)';
+    eb.style.transition = 'transform 220ms cubic-bezier(0.4, 0.0, 0.2, 1)';
+    ea.style.transform = `translate(${dx}px, ${dy}px)`;
+    eb.style.transform = `translate(${-dx}px, ${-dy}px)`;
+
+    setTimeout(() => {
+      [tiles[a], tiles[b]] = [tiles[b], tiles[a]];
+      if (!fromUndo) history.push([a, b]);
+      // snap both back to their grid cells, now showing the swapped artwork
+      ea.style.transition = 'none';
+      eb.style.transition = 'none';
+      ea.style.transform = '';
+      eb.style.transform = '';
+      ea.style.zIndex = '';
+      ea.style.backgroundPosition = bgPositionFor(tiles[a]);
+      eb.style.backgroundPosition = bgPositionFor(tiles[b]);
+      void ea.offsetWidth; // force reflow before re-enabling transitions
+      ea.style.transition = '';
+      eb.style.transition = '';
+      animating = false;
+      if (isSolved()) handleWin();
+    }, 220);
+  }
+
+  function handleWin() {
+    solved = true;
+    grid.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
+    burstSparkles();
+    setTimeout(() => winOverlay.classList.add('show'), 600);
+  }
+
+  function burstSparkles() {
+    const rect = grid.getBoundingClientRect();
+    for (let i = 0; i < 18; i++) {
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      const angle = (i / 18) * Math.PI * 2;
+      const dist = 120 + Math.random() * 80;
+      s.style.left = (rect.left + rect.width / 2 - 5) + 'px';
+      s.style.top = (rect.top + rect.height / 2 - 5) + 'px';
+      s.style.setProperty('--end', `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`);
+      s.style.background = i % 2 ? '#FFC73C' : '#F8C8DF';
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 900);
+    }
+  }
+
+  // Hint: briefly flash a tile that's out of place and its correct slot
+  hintBtn.addEventListener('click', () => {
+    if (solved) return;
+    const wrong = tiles
+      .map((c, slot) => ({ c, slot }))
+      .filter(({ c, slot }) => c !== slot);
+    if (!wrong.length) return;
+    const pick = wrong[Math.floor(Math.random() * wrong.length)];
+    const tileEl = getTileEl(pick.slot);
+    const targetEl = getTileEl(pick.c);
+    [tileEl, targetEl].forEach(el => {
+      el.classList.remove('hint-flash');
+      void el.offsetWidth;
+      el.classList.add('hint-flash');
+    });
+  });
+
+  undoBtn.addEventListener('click', () => {
+    if (solved || !history.length) return;
+    const [a, b] = history.pop();
+    swap(a, b, true);
+  });
+
+  ctaBtn.addEventListener('click', () => {
+    // In a real playable ad this fires the ad network's "click → store" callback.
+    // For now, log + reset for repeat play during testing.
+    console.log('[PicMerge] CTA tapped → store redirect');
+    winOverlay.classList.remove('show');
+    setTimeout(reset, 350);
+  });
+
+  function reset() {
+    solved = false;
+    animating = false;
+    history = [];
+    shuffle();
+    render();
+  }
+
+  reset();
+})();
+</script>
+</body>
+</html>

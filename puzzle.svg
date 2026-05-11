@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfe2f3"/>
+      <stop offset="55%" stop-color="#8fb8d8"/>
+      <stop offset="100%" stop-color="#5b7fa6"/>
+    </linearGradient>
+    <radialGradient id="cloud" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="petal" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#f3b6d6"/>
+      <stop offset="60%" stop-color="#c97fb0"/>
+      <stop offset="100%" stop-color="#7a3d6b"/>
+    </radialGradient>
+    <radialGradient id="petalSmall" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#f8c8df"/>
+      <stop offset="100%" stop-color="#a85a8c"/>
+    </radialGradient>
+    <linearGradient id="stem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b3a2a"/>
+      <stop offset="100%" stop-color="#1f2415"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sky -->
+  <rect width="600" height="600" fill="url(#sky)"/>
+
+  <!-- clouds -->
+  <ellipse cx="120" cy="120" rx="160" ry="60" fill="url(#cloud)"/>
+  <ellipse cx="460" cy="80" rx="180" ry="50" fill="url(#cloud)"/>
+  <ellipse cx="300" cy="240" rx="240" ry="70" fill="url(#cloud)" opacity="0.6"/>
+  <ellipse cx="80" cy="380" rx="180" ry="50" fill="url(#cloud)" opacity="0.5"/>
+  <ellipse cx="500" cy="440" rx="200" ry="60" fill="url(#cloud)" opacity="0.5"/>
+
+  <!-- stems -->
+  <path d="M 300 600 C 290 480 320 420 305 320 L 297 320 C 312 420 282 480 292 600 Z" fill="url(#stem)"/>
+  <path d="M 150 600 C 160 500 130 440 175 360 L 183 365 C 138 445 168 505 158 600 Z" fill="url(#stem)" opacity="0.85"/>
+  <path d="M 470 600 C 460 520 490 470 455 400 L 463 396 C 498 466 468 520 478 600 Z" fill="url(#stem)" opacity="0.85"/>
+
+  <!-- main flower (back-lit, large center) -->
+  <g transform="translate(300 290)">
+    <ellipse cx="0" cy="0" rx="120" ry="70" fill="url(#petal)" transform="rotate(-20)"/>
+    <ellipse cx="0" cy="-20" rx="90" ry="55" fill="url(#petal)" transform="rotate(20)"/>
+    <ellipse cx="-30" cy="10" rx="80" ry="50" fill="url(#petal)" transform="rotate(70)"/>
+    <ellipse cx="30" cy="10" rx="80" ry="50" fill="url(#petal)" transform="rotate(-70)"/>
+    <circle cx="0" cy="-5" r="22" fill="#3a1f33"/>
+  </g>
+
+  <!-- small bottom-left flower -->
+  <g transform="translate(140 470)">
+    <ellipse cx="0" cy="0" rx="70" ry="40" fill="url(#petalSmall)" transform="rotate(-25)"/>
+    <ellipse cx="0" cy="-10" rx="55" ry="30" fill="url(#petalSmall)" transform="rotate(20)"/>
+    <ellipse cx="-15" cy="5" rx="48" ry="28" fill="url(#petalSmall)" transform="rotate(70)"/>
+    <circle cx="0" cy="-2" r="14" fill="#3a1f33"/>
+  </g>
+
+  <!-- small bottom-right flower -->
+  <g transform="translate(470 500)">
+    <ellipse cx="0" cy="0" rx="65" ry="38" fill="url(#petalSmall)" transform="rotate(15)"/>
+    <ellipse cx="0" cy="-10" rx="50" ry="28" fill="url(#petalSmall)" transform="rotate(-30)"/>
+    <ellipse cx="15" cy="5" rx="45" ry="26" fill="url(#petalSmall)" transform="rotate(-70)"/>
+    <circle cx="0" cy="-2" r="13" fill="#3a1f33"/>
+  </g>
+
+  <!-- a small top-right bud -->
+  <g transform="translate(520 200)">
+    <ellipse cx="0" cy="0" rx="40" ry="22" fill="url(#petalSmall)" transform="rotate(-30)"/>
+    <circle cx="-2" cy="-2" r="9" fill="#3a1f33"/>
+  </g>
+</svg>
