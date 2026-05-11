@@ -191,65 +191,203 @@
     opacity: 1;
     pointer-events: auto;
   }
-  .card {
-    background: linear-gradient(180deg, #ffffff, #f1ecff);
-    color: #2c2452;
-    border-radius: 24px;
-    padding: 28px 26px 24px;
-    width: 86%;
-    max-width: 340px;
-    text-align: center;
-    box-shadow: 0 14px 0 rgba(0,0,0,0.25);
-    transform: scale(0.85);
-    transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .overlay.show .card { transform: scale(1); }
-  .card h2 {
-    margin: 0 0 6px;
-    font-size: 28px;
-    color: #6B5BB7;
-  }
-  .card p {
-    margin: 0 0 18px;
-    color: #5a517a;
-    font-size: 15px;
-  }
-  .preview {
-    width: 70%;
-    aspect-ratio: 1;
-    margin: 0 auto 18px;
-    border-radius: 16px;
-    background: url('puzzle.svg') center/cover no-repeat;
-    box-shadow: 0 6px 0 rgba(0,0,0,0.12), inset 0 0 0 3px #fff;
-  }
-  .cta {
-    display: block;
-    width: 100%;
-    padding: 14px;
-    border: none;
-    border-radius: 16px;
-    background: linear-gradient(180deg, #58c750, #2f9c2a);
-    color: #fff;
-    font-size: 18px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 5px 0 #1c6418;
-    letter-spacing: 0.3px;
-  }
-  .cta:active { transform: translateY(2px); box-shadow: 0 3px 0 #1c6418; }
-
-  /* Sparkles on win */
-  .sparkle {
+  .overlay-stars {
     position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-star {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #fff;
+    clip-path: polygon(50% 0%, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0% 50%, 42% 42%);
+    will-change: transform, opacity;
+  }
+  .overlay-content {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 2;
+  }
+
+  /* Ribbon banner */
+  .ribbon-wrap {
+    position: relative;
+    width: 92%;
+    max-width: 340px;
+    height: 78px;
+    margin-bottom: 14px;
+  }
+  .ribbon-tail {
+    position: absolute;
+    top: 22px;
+    width: 56px;
+    height: 50px;
+    background: linear-gradient(180deg, #c14210, #8a2d08);
+    z-index: 1;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18);
+  }
+  .ribbon-tail-left {
+    left: -6px;
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 28% 50%);
+  }
+  .ribbon-tail-right {
+    right: -6px;
+    clip-path: polygon(0% 0%, 100% 0%, 72% 50%, 100% 100%, 0% 100%);
+  }
+  .ribbon-main {
+    position: absolute;
+    top: 0;
+    left: 28px;
+    right: 28px;
+    height: 64px;
+    background: linear-gradient(180deg, #ff944c, #e8541a);
+    color: white;
+    font-size: 24px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    text-shadow: 0 2px 0 rgba(120, 30, 0, 0.55);
+    letter-spacing: 0.4px;
+    z-index: 2;
+    box-shadow:
+      0 5px 0 rgba(0,0,0,0.18),
+      inset 0 -3px 0 rgba(0,0,0,0.12),
+      inset 0 2px 0 rgba(255,255,255,0.25);
+  }
+
+  /* Photo frame */
+  .photo-frame {
+    position: relative;
+    width: 72%;
+    max-width: 280px;
+    aspect-ratio: 1 / 1;
+    background: url('puzzle.svg') center/cover no-repeat;
+    border: 6px solid #fff;
+    border-radius: 10px;
+    box-shadow:
+      0 10px 0 rgba(0,0,0,0.22),
+      0 0 0 1px rgba(0,0,0,0.05),
+      0 0 30px rgba(255, 199, 60, 0.35);
+    margin-bottom: 26px;
+  }
+  .coin-reward {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    border-radius: 999px;
+    padding: 4px 14px 4px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 900;
+    color: #2c2452;
+    font-size: 18px;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.18);
+  }
+  .coin-reward .coin {
+    width: 26px; height: 26px;
+  }
+
+  /* Continue button */
+  .cta-continue {
+    width: 86%;
+    max-width: 320px;
+    padding: 18px;
+    margin-top: 8px;
+    display: block;
+    background: linear-gradient(180deg, #6dd053, #36a02b);
+    color: #fff;
+    font-size: 24px;
+    font-weight: 900;
+    border: none;
+    border-radius: 22px;
+    box-shadow: 0 6px 0 #1d6d18, 0 12px 18px rgba(0,0,0,0.25);
+    text-shadow: 0 2px 0 rgba(0, 60, 0, 0.35);
+    cursor: pointer;
+    letter-spacing: 0.6px;
+  }
+  .cta-continue:active { transform: translateY(3px); box-shadow: 0 3px 0 #1d6d18, 0 6px 10px rgba(0,0,0,0.25); }
+
+  /* Cascading entry animations */
+  .overlay .ribbon-wrap,
+  .overlay .photo-frame,
+  .overlay .cta-continue {
+    opacity: 0;
+  }
+  .overlay .coin-reward { opacity: 0; transform: translateX(-50%) scale(0); }
+
+  .overlay.show .ribbon-wrap { animation: ribbonDrop 600ms 0ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .overlay.show .photo-frame { animation: photoZoom 500ms 250ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .overlay.show .coin-reward { animation: badgePop 500ms 650ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .overlay.show .cta-continue { animation: ctaSlide 450ms 850ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .overlay.show .bg-star { animation: starTwinkle 1400ms ease-in-out infinite; }
+
+  @keyframes ribbonDrop {
+    0%   { transform: translateY(-140px) rotate(-4deg); opacity: 0; }
+    65%  { transform: translateY(8px) rotate(2deg);    opacity: 1; }
+    100% { transform: translateY(0) rotate(0);          opacity: 1; }
+  }
+  @keyframes photoZoom {
+    0%   { transform: scale(0.5);  opacity: 0; }
+    70%  { transform: scale(1.06); opacity: 1; }
+    100% { transform: scale(1);    opacity: 1; }
+  }
+  @keyframes badgePop {
+    0%   { transform: translateX(-50%) scale(0);    opacity: 0; }
+    70%  { transform: translateX(-50%) scale(1.25); opacity: 1; }
+    100% { transform: translateX(-50%) scale(1);    opacity: 1; }
+  }
+  @keyframes ctaSlide {
+    0%   { transform: translateY(60px); opacity: 0; }
+    100% { transform: translateY(0);     opacity: 1; }
+  }
+  @keyframes starTwinkle {
+    0%, 100% { opacity: var(--star-base, 0.5); transform: var(--star-tf) scale(0.9); }
+    50%      { opacity: calc(var(--star-base, 0.5) + 0.3); transform: var(--star-tf) scale(1.15); }
+  }
+
+  /* Sparkle burst (existing) */
+  .sparkle {
+    position: fixed;
     width: 10px; height: 10px;
     background: var(--gold);
     border-radius: 50%;
     pointer-events: none;
-    animation: sparkle 800ms ease-out forwards;
+    z-index: 25;
+    animation: sparkleBurst 900ms ease-out forwards;
   }
-  @keyframes sparkle {
-    0% { transform: translate(0,0) scale(0.4); opacity: 1; }
-    100% { transform: var(--end) scale(1.2); opacity: 0; }
+  @keyframes sparkleBurst {
+    0%   { transform: translate(0,0) scale(0.4); opacity: 1; }
+    100% { transform: var(--end) scale(1.3);     opacity: 0; }
+  }
+
+  /* Confetti */
+  .confetti {
+    position: fixed;
+    top: -24px;
+    width: 8px; height: 14px;
+    border-radius: 2px;
+    z-index: 25;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  /* Winning grid pulse */
+  .grid.won { animation: gridWinPulse 600ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes gridWinPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.06); filter: brightness(1.15) drop-shadow(0 0 30px rgba(255,199,60,0.8)); }
+    100% { transform: scale(1); }
   }
 </style>
 </head>
@@ -272,11 +410,19 @@
 </div>
 
 <div class="overlay" id="winOverlay">
-  <div class="card">
-    <div class="preview"></div>
-    <h2>Puzzle Solved!</h2>
-    <p>Unlock 1,000+ pictures.<br>Play the full game now.</p>
-    <button class="cta" id="ctaBtn">INSTALL FREE</button>
+  <div class="overlay-stars" id="overlayStars"></div>
+  <div class="overlay-content">
+    <div class="ribbon-wrap">
+      <div class="ribbon-tail ribbon-tail-left"></div>
+      <div class="ribbon-tail ribbon-tail-right"></div>
+      <div class="ribbon-main">Level Cleared!</div>
+    </div>
+    <div class="photo-frame">
+      <div class="coin-reward">
+        <span class="coin">$</span><span>+5</span>
+      </div>
+    </div>
+    <button class="cta-continue" id="ctaBtn">Continue</button>
   </div>
 </div>
 
@@ -469,23 +615,80 @@
   function handleWin() {
     solved = true;
     grid.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
+    // Stage 1: grid pulses gold
+    grid.classList.add('won');
+    // Stage 2: sparkle burst from grid center
     burstSparkles();
-    setTimeout(() => winOverlay.classList.add('show'), 600);
+    // Stage 3: confetti shower from above
+    startConfetti(48);
+    // Stage 4: spawn scattered twinkling stars across the overlay area
+    spawnOverlayStars(28);
+    // Stage 5: end card slides in (ribbon, photo, +5, Continue cascade)
+    setTimeout(() => winOverlay.classList.add('show'), 650);
   }
 
   function burstSparkles() {
     const rect = grid.getBoundingClientRect();
-    for (let i = 0; i < 18; i++) {
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (let i = 0; i < 22; i++) {
       const s = document.createElement('div');
       s.className = 'sparkle';
-      const angle = (i / 18) * Math.PI * 2;
-      const dist = 120 + Math.random() * 80;
-      s.style.left = (rect.left + rect.width / 2 - 5) + 'px';
-      s.style.top = (rect.top + rect.height / 2 - 5) + 'px';
+      const angle = (i / 22) * Math.PI * 2 + Math.random() * 0.3;
+      const dist = 130 + Math.random() * 110;
+      s.style.left = (cx - 5) + 'px';
+      s.style.top = (cy - 5) + 'px';
       s.style.setProperty('--end', `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`);
-      s.style.background = i % 2 ? '#FFC73C' : '#F8C8DF';
+      s.style.background = i % 3 === 0 ? '#FFC73C' : (i % 3 === 1 ? '#F8C8DF' : '#fff');
       document.body.appendChild(s);
-      setTimeout(() => s.remove(), 900);
+      setTimeout(() => s.remove(), 950);
+    }
+  }
+
+  function startConfetti(n) {
+    const colors = ['#FFC73C', '#F8C8DF', '#ff8e42', '#6dd053', '#a18cf0', '#ffffff'];
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * 100 + 'vw';
+        c.style.background = colors[Math.floor(Math.random() * colors.length)];
+        const dur = 1700 + Math.random() * 1400;
+        const drift = (Math.random() * 220 - 110) + 'px';
+        const rot = (Math.random() * 1080 - 540) + 'deg';
+        c.style.transition = `transform ${dur}ms linear, opacity ${dur}ms ease-in`;
+        document.body.appendChild(c);
+        // kick off transition next frame
+        requestAnimationFrame(() => {
+          c.style.transform = `translate(${drift}, 110vh) rotate(${rot})`;
+          c.style.opacity = '0.4';
+        });
+        setTimeout(() => c.remove(), dur + 100);
+      }, i * 35);
+    }
+  }
+
+  const overlayStars = document.getElementById('overlayStars');
+  function spawnOverlayStars(n) {
+    overlayStars.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('div');
+      s.className = 'bg-star';
+      const x = Math.random() * 100;
+      const y = Math.random() * 100;
+      const size = 8 + Math.random() * 18;
+      const rot = Math.random() * 360;
+      const base = 0.35 + Math.random() * 0.45;
+      s.style.left = x + '%';
+      s.style.top = y + '%';
+      s.style.width = size + 'px';
+      s.style.height = size + 'px';
+      s.style.setProperty('--star-tf', `rotate(${rot}deg)`);
+      s.style.setProperty('--star-base', base);
+      s.style.transform = `rotate(${rot}deg) scale(0.9)`;
+      s.style.opacity = base;
+      s.style.animationDelay = (Math.random() * 1.4) + 's';
+      overlayStars.appendChild(s);
     }
   }
 
@@ -524,6 +727,7 @@
     solved = false;
     animating = false;
     history = [];
+    grid.classList.remove('won');
     shuffle();
     render();
   }
