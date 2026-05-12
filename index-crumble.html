@@ -11,6 +11,9 @@
     --tile-border: rgba(255,255,255,0.55);
     --gold: #FFC73C;
     --puzzle-img: url('puzzle.webp');
+    --crack-1: url('crack1.svg');
+    --crack-2: url('crack2.svg');
+    --crack-3: url('crack3.svg');
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -144,6 +147,83 @@
       inset -1px -1px 0 var(--seam),
       inset 0 0 0 3px var(--gold);
   }
+  /* Crack overlay — added as a child .crack-layer in render() */
+  .crack-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 380ms cubic-bezier(0.4, 0, 0.2, 1);
+    filter: drop-shadow(0 0 0.4px rgba(255,255,255,0.9));
+    z-index: 1;
+  }
+  .tile[data-crack="1"] .crack-layer { opacity: 0.85; background-image: var(--crack-1); }
+  .tile[data-crack="2"] .crack-layer { opacity: 0.95; background-image: var(--crack-2); }
+  .tile[data-crack="3"] .crack-layer { opacity: 1;    background-image: var(--crack-3); }
+
+  /* Heal flash when a merge wipes the cracks */
+  .tile.heal-flash {
+    animation: healFlash 600ms ease-out;
+  }
+  @keyframes healFlash {
+    0%   { box-shadow: inset -1px -1px 0 var(--seam); }
+    35%  { box-shadow: inset 0 0 0 3px rgba(120, 230, 120, 0.85), 0 0 18px rgba(120, 230, 120, 0.6); }
+    100% { box-shadow: inset -1px -1px 0 var(--seam); }
+  }
+
+  /* Shatter: tiles fall + rotate + fade on failure */
+  .grid.shattered .tile {
+    animation: shatterFall 700ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+    pointer-events: none;
+  }
+  .grid.shattered .tile:nth-child(1) { animation-delay:   0ms; }
+  .grid.shattered .tile:nth-child(2) { animation-delay:  60ms; }
+  .grid.shattered .tile:nth-child(3) { animation-delay: 120ms; }
+  .grid.shattered .tile:nth-child(4) { animation-delay:  90ms; }
+  .grid.shattered .tile:nth-child(5) { animation-delay: 150ms; }
+  .grid.shattered .tile:nth-child(6) { animation-delay: 210ms; }
+  .grid.shattered .tile:nth-child(7) { animation-delay: 180ms; }
+  .grid.shattered .tile:nth-child(8) { animation-delay: 240ms; }
+  .grid.shattered .tile:nth-child(9) { animation-delay: 300ms; }
+  @keyframes shatterFall {
+    0%   { transform: scale(1) translateY(0) rotate(0); opacity: 1; }
+    20%  { transform: scale(1.05) translateY(-4px) rotate(-2deg); }
+    100% { transform: scale(0.7) translateY(60px) rotate(-12deg); opacity: 0; }
+  }
+
+  /* Failure end-card theming (red ribbon, shattered photo, retry button) */
+  .overlay-fail .ribbon-main {
+    background: linear-gradient(180deg, #e85555, #9a1f1f);
+    text-shadow: 0 2px 0 rgba(60, 0, 0, 0.55);
+  }
+  .overlay-fail .ribbon-tail {
+    background: linear-gradient(180deg, #9a1f1f, #5a0808);
+  }
+  .overlay-fail .photo-frame {
+    filter: grayscale(0.5) contrast(1.05) brightness(0.85);
+    box-shadow:
+      0 10px 0 rgba(0,0,0,0.22),
+      0 0 30px rgba(232, 85, 85, 0.4);
+  }
+  .overlay-fail .photo-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: var(--crack-3);
+    background-size: 100% 100%;
+    opacity: 0.95;
+    pointer-events: none;
+  }
+  .overlay-fail .coin-reward { display: none; }
+  .cta-retry {
+    background: linear-gradient(180deg, #e85555, #a32525);
+    box-shadow: 0 6px 0 #5a0808, 0 12px 18px rgba(0,0,0,0.25);
+    text-shadow: 0 2px 0 rgba(60, 0, 0, 0.5);
+  }
+  .cta-retry:active { transform: translateY(3px); box-shadow: 0 3px 0 #5a0808, 0 6px 10px rgba(0,0,0,0.25); }
+
   .tile.hint-flash {
     animation: hintFlash 0.9s ease-in-out;
   }
@@ -420,6 +500,18 @@
   </div>
 </div>
 
+<div class="overlay overlay-fail" id="failOverlay">
+  <div class="overlay-content">
+    <div class="ribbon-wrap">
+      <div class="ribbon-tail ribbon-tail-left"></div>
+      <div class="ribbon-tail ribbon-tail-right"></div>
+      <div class="ribbon-main">Picture Shattered!</div>
+    </div>
+    <div class="photo-frame"></div>
+    <button class="cta-continue cta-retry" id="retryBtn">Try Again</button>
+  </div>
+</div>
+
 <div class="overlay" id="winOverlay">
   <div class="overlay-stars" id="overlayStars"></div>
   <div class="overlay-content">
@@ -443,11 +535,17 @@
   const TOTAL = GRID * GRID;
   const grid = document.getElementById('grid');
   const winOverlay = document.getElementById('winOverlay');
+  const failOverlay = document.getElementById('failOverlay');
   const hintBtn = document.getElementById('hintBtn');
   const undoBtn = document.getElementById('undoBtn');
   const ctaBtn = document.getElementById('ctaBtn');
+  const retryBtn = document.getElementById('retryBtn');
   const muteBtn = document.getElementById('muteBtn');
   const levelLabel = document.getElementById('levelLabel');
+
+  // Crumble-variant config — picture cracks over time on unmerged tiles.
+  const CRACK_TICK_MS = 2500;
+  const MAX_CRACK = 3;
 
   // Level variants — Continue advances to the next one.
   const LEVELS = [
@@ -507,6 +605,17 @@
         setTimeout(() => tone(f, 0.45, { type: 'triangle', gain: 0.3 }), i * 110)
       );
     }
+    function playCrack() {
+      // short, low click — like a glass tap
+      tone(140, 0.07, { type: 'sawtooth', gain: 0.13 });
+      setTimeout(() => tone(95, 0.05, { type: 'square', gain: 0.08 }), 25);
+    }
+    function playFail() {
+      // descending minor arpeggio — uh-oh
+      [392.00, 329.63, 261.63, 196.00].forEach((f, i) =>
+        setTimeout(() => tone(f, 0.5, { type: 'sawtooth', gain: 0.22 }), i * 110)
+      );
+    }
     // Soft ambient pad cycling through chords
     function startMusic() {
       if (!ctx) return;
@@ -556,17 +665,99 @@
       }
     }
     function isMuted() { return muted; }
-    return { unlock, playPickup, playDrop, playMerge, playWin, setMuted, isMuted };
+    return { unlock, playPickup, playDrop, playMerge, playWin, playCrack, playFail, setMuted, isMuted };
   })();
 
   // tiles[slot] = correctIndex of the artwork piece currently in that slot.
   let tiles = [];
   let history = [];
   let solved = false;
+  let failed = false;
   let animating = false;
   let prevMergeKeys = new Set();
   let suppressMergeFx = false;
+  let crackStages = new Array(TOTAL).fill(0);
+  let crackTimerId = null;
   const DRAG_THRESHOLD = 6; // px before we lift the tile
+
+  function isInMergeGroup(slot) {
+    const el = getTileEl(slot);
+    if (!el) return false;
+    if (el.classList.contains('merged-right') || el.classList.contains('merged-down')) return true;
+    const col = slot % GRID;
+    const row = Math.floor(slot / GRID);
+    if (col > 0) {
+      const left = getTileEl(slot - 1);
+      if (left && left.classList.contains('merged-right')) return true;
+    }
+    if (row > 0) {
+      const up = getTileEl(slot - GRID);
+      if (up && up.classList.contains('merged-down')) return true;
+    }
+    return false;
+  }
+
+  function applyCrack(slot) {
+    const el = getTileEl(slot);
+    if (el) el.dataset.crack = crackStages[slot];
+  }
+
+  function healCracks(slots) {
+    slots.forEach(s => {
+      if (crackStages[s] > 0) {
+        crackStages[s] = 0;
+        applyCrack(s);
+        const el = getTileEl(s);
+        if (el) {
+          el.classList.remove('heal-flash');
+          void el.offsetWidth;
+          el.classList.add('heal-flash');
+          setTimeout(() => el.classList.remove('heal-flash'), 620);
+        }
+      }
+    });
+  }
+
+  function tickCrack() {
+    if (solved || failed || animating) return;
+    // Vulnerable = unmerged tiles below max
+    const vulnerable = [];
+    for (let s = 0; s < TOTAL; s++) {
+      if (crackStages[s] >= MAX_CRACK) continue;
+      if (isInMergeGroup(s)) continue;
+      vulnerable.push(s);
+    }
+    if (!vulnerable.length) return;
+    // Spread cracks evenly — pick from the least-cracked vulnerable tiles
+    const minLevel = Math.min(...vulnerable.map(s => crackStages[s]));
+    const candidates = vulnerable.filter(s => crackStages[s] === minLevel);
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    crackStages[pick]++;
+    applyCrack(pick);
+    audio.playCrack();
+    if (crackStages[pick] >= MAX_CRACK) handleFailure();
+  }
+
+  function startCrackTimer() {
+    if (crackTimerId !== null) return;
+    crackTimerId = setInterval(tickCrack, CRACK_TICK_MS);
+  }
+  function stopCrackTimer() {
+    if (crackTimerId !== null) {
+      clearInterval(crackTimerId);
+      crackTimerId = null;
+    }
+  }
+
+  function handleFailure() {
+    if (failed || solved) return;
+    failed = true;
+    stopCrackTimer();
+    audio.playFail();
+    grid.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
+    grid.classList.add('shattered');
+    setTimeout(() => failOverlay.classList.add('show'), 850);
+  }
 
   function bgPositionFor(correctIndex) {
     const col = correctIndex % GRID;
@@ -581,7 +772,11 @@
       const t = document.createElement('div');
       t.className = 'tile';
       t.dataset.slot = slot;
+      t.dataset.crack = crackStages[slot] || 0;
       t.style.backgroundPosition = bgPositionFor(correctIndex);
+      const crackLayer = document.createElement('div');
+      crackLayer.className = 'crack-layer';
+      t.appendChild(crackLayer);
       attachDrag(t);
       grid.appendChild(t);
     });
@@ -677,8 +872,10 @@
   }
 
   // "Aha" moment: visual flash + sparkle burst at the seam + chime.
+  // Also heals cracks on the merged tiles — the central tension of the variant.
   function onMerge(pairs) {
     audio.playMerge();
+    const healSet = new Set();
     pairs.forEach(({ a, b, dir }) => {
       const ea = getTileEl(a), eb = getTileEl(b);
       if (!ea || !eb) return;
@@ -689,7 +886,9 @@
         setTimeout(() => el.classList.remove('merge-flash'), 650);
       });
       sparkleSeam(ea, eb, dir);
+      healSet.add(a); healSet.add(b);
     });
+    if (healSet.size) healCracks([...healSet]);
   }
 
   function sparkleSeam(elA, elB, dir) {
@@ -723,7 +922,7 @@
 
     el.addEventListener('pointerdown', (e) => {
       audio.unlock();
-      if (solved || animating || pid !== null) return;
+      if (solved || failed || animating || pid !== null) return;
       pid = e.pointerId;
       startX = e.clientX;
       startY = e.clientY;
@@ -924,6 +1123,7 @@
 
   function handleWin() {
     solved = true;
+    stopCrackTimer();
     grid.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
     audio.playWin();
     grid.classList.add('won');
@@ -1036,6 +1236,12 @@
     }, 350);
   });
 
+  retryBtn.addEventListener('click', () => {
+    console.log('[PicMerge] Retry tapped (in prod: maybe to store after N fails)');
+    failOverlay.classList.remove('show');
+    setTimeout(() => loadLevel(currentLevel), 350);
+  });
+
   muteBtn.addEventListener('click', () => {
     audio.unlock();
     const nowMuted = !audio.isMuted();
@@ -1053,14 +1259,18 @@
 
   function reset() {
     solved = false;
+    failed = false;
     animating = false;
     history = [];
     prevMergeKeys = new Set();
-    grid.classList.remove('won');
+    crackStages = new Array(TOTAL).fill(0);
+    stopCrackTimer();
+    grid.classList.remove('won', 'shattered');
     suppressMergeFx = true;
     shuffle();
     render();
     suppressMergeFx = false;
+    startCrackTimer();
   }
 
   loadLevel(currentLevel);
