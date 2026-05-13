@@ -31,8 +31,12 @@
     width: 100%;
     max-width: 480px;
     margin: 0 auto;
+    /* Use the visible viewport. dvh excludes the URL bar; vh is a fallback
+       for older browsers. NEVER mix with min-height: 100vh — that forces the
+       app taller than the visible area and clips the puzzle's bottom row. */
+    height: 100vh;
     height: 100dvh;
-    min-height: 100vh;
+    box-sizing: border-box;
     display: grid;
     grid-template-rows: 1fr 1fr;
     padding-top: env(safe-area-inset-top);
