@@ -2066,14 +2066,18 @@ const topScene = (() => {
 })();
 
 // ============================================================
-// ASSET PRELOADER — gates the game start behind a loading screen.
-// Each asset (image / audio) reports load-or-error; once they all
-// resolve, the loader fades out and topScene.init() fires.
+// ASSET PRELOADER
+//   • CRITICAL — block the loader until these two heavy images are
+//     ready; they're the first thing painted in both scenes.
+//   • EAGER — fire requests but don't gate game start. Sprites and
+//     audio are small / used later, so warm the cache and move on.
 // ============================================================
 (() => {
-  const ASSETS = [
-    'assets/bg-top.png',
-    'pic.png',
+  const CRITICAL = [
+    'assets/bg-top.png',  // top scene background
+    'pic.png',            // bottom puzzle image
+  ];
+  const EAGER = [
     'assets/granny-idle.png',
     'assets/granny-scared.png',
     'assets/granny-saved.png',
@@ -2084,41 +2088,39 @@ const topScene = (() => {
     'assets/vo-outro.mp3',
   ];
 
-  const loader   = document.getElementById('loader');
-  const fillEl   = document.getElementById('loaderProgressFill');
-  const textEl   = document.getElementById('loaderText');
-  let loaded     = 0;
-  let started    = false;
-  const total    = ASSETS.length;
+  const loader = document.getElementById('loader');
+  const fillEl = document.getElementById('loaderProgressFill');
+  const textEl = document.getElementById('loaderText');
+  let loaded = 0;
+  let started = false;
 
   function update() {
-    const pct = Math.round((loaded / total) * 100);
+    const pct = Math.round((loaded / CRITICAL.length) * 100);
     if (fillEl) fillEl.style.width = pct + '%';
     if (textEl) textEl.textContent = 'Loading ' + pct + '%';
-    if (loaded >= total && !started) {
+    if (loaded >= CRITICAL.length && !started) {
       started = true;
-      // Brief pause at 100% so the bar settles, then hand off.
-      setTimeout(start, 320);
+      setTimeout(start, 250);
     }
   }
-
   function start() {
     if (loader) loader.classList.add('hidden');
     setTimeout(() => { if (loader && loader.parentNode) loader.remove(); }, 500);
     if (typeof topScene !== 'undefined' && topScene.init) topScene.init();
   }
-
-  function preload(url) {
+  function preload(url, blocking) {
     let done = false;
-    const finish = () => { if (done) return; done = true; loaded++; update(); };
+    const finish = () => {
+      if (done) return; done = true;
+      if (blocking) { loaded++; update(); }
+    };
     const ext = url.split('.').pop().toLowerCase();
     if (ext === 'mp3' || ext === 'wav' || ext === 'ogg' || ext === 'm4a') {
       const a = new Audio();
       a.preload = 'auto';
       a.addEventListener('canplaythrough', finish, { once: true });
       a.addEventListener('error', finish, { once: true });
-      // Safety: don't block forever if the network or codec stalls.
-      setTimeout(finish, 6000);
+      if (blocking) setTimeout(finish, 6000);
       a.src = url;
     } else {
       const img = new Image();
@@ -2128,8 +2130,9 @@ const topScene = (() => {
     }
   }
 
-  ASSETS.forEach(preload);
-  update();  // render initial 0% state
+  CRITICAL.forEach(u => preload(u, true));
+  EAGER.forEach(u => preload(u, false));
+  update();
 })();
 
 // ============================================================
@@ -2165,6 +2168,25 @@ document.addEventListener('pointerdown', () => {
   audio.unlock();
   audio.playIntro();
   playVO(voIntro);
+  // Prime voOutro NOW — its first .play() must be inside a user gesture
+  // or the browser blocks it. By the time the puzzle is solved, the
+  // original tap's activation has expired. Muted-play-then-pause unlocks
+  // the element silently so the later (audible) play() works.
+  try {
+    voOutro.muted = true;
+    const p = voOutro.play();
+    if (p && typeof p.then === 'function') {
+      p.then(() => {
+        voOutro.pause();
+        voOutro.currentTime = 0;
+        voOutro.muted = false;
+      }).catch(() => { voOutro.muted = false; });
+    } else {
+      voOutro.pause();
+      voOutro.currentTime = 0;
+      voOutro.muted = false;
+    }
+  } catch (_) { voOutro.muted = false; }
   requestFullscreenOnce();
 }, { once: true });
 
