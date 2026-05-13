@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Save Granny — PicMerge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #6B5BB7;
+    --bg-deep: #5849a3;
+    --tile-border: rgba(255,255,255,0.55);
+    --gold: #FFC73C;
+    --puzzle-img: url('pic.png');
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0c0817;
+    color: #fff;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  #app {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    height: 100dvh;
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: linear-gradient(180deg, #2a1d3a 0%, #0c0817 100%);
+    position: relative;
+  }
+  /* Subtle viewport vignette — adds depth without obscuring content. */
+  #app::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35);
+    z-index: 40;
+  }
+
+  /* ============================================================
+     TOP SCENE: bg image, chasm zone, balls, lady, hazard
+     ============================================================ */
+  .scene-top {
+    position: relative;
+    overflow: hidden;
+    pointer-events: none;
+    background: #1a0e22 url('assets/bg-top.png') center/100% 100% no-repeat;
+  }
+  .chasm-zone {
+    position: absolute;
+    /* Aligned with the narrow chasm channel in bg-top.jpg */
+    left: 38%;
+    right: 49%;
+    top: 0;
+    bottom: 2%;
+    z-index: 1;
+  }
+  .fallers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .ball {
+    position: absolute;
+    width: var(--ball-d, 22px);
+    height: var(--ball-d, 22px);
+    background: url('assets/ball.png') center/contain no-repeat;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+    will-change: transform;
+    top: 0; left: 0;
+  }
+
+  /* Hazard: spikes mounted in the upper-right alcove on the right wall,
+     pointing left into the chasm toward the lady. */
+  .hazard {
+    position: absolute;
+    left: 80%;
+    top: 42%;
+    width: 15.5%;
+    height: 20.5%;
+    object-fit: contain;
+    object-position: right center;
+    z-index: 5;
+    filter: drop-shadow(-2px 0 3px rgba(0,0,0,0.5));
+  }
+
+  /* Lady (img-based, three preloaded states).
+     Stands on the inner left of the ledge, plank extending into the chasm. */
+  .granny {
+    position: absolute;
+    right: 32%;
+    bottom: 33%;
+    width: 21.5%;
+    height: 25.5%;
+    z-index: 6;
+    transform-origin: 50% 100%;
+  }
+  .granny img {
+    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: bottom center;
+  }
+  .granny[data-state="idle"] .g-idle { display: block; }
+  .granny[data-state="scared"] .g-scared { display: block; }
+  .granny[data-state="solving"] .g-saved,
+  .granny[data-state="saved"]   .g-saved { display: block; }
+  .granny[data-state="idle"]   { animation: breathe 3.2s ease-in-out infinite; }
+  .granny[data-state="scared"] { animation: breathe 2.4s ease-in-out infinite; }
+  .granny[data-state="saved"]  { animation: bounce 600ms ease-out; }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.03); }
+  }
+  @keyframes tremble {
+    0%, 100% { transform: translate(0, 0) rotate(-1deg); }
+    25%      { transform: translate(-1.5px, 0) rotate(-1.5deg); }
+    75%      { transform: translate(1.5px, 0) rotate(-0.5deg); }
+  }
+  @keyframes bounce {
+    0%   { transform: translateY(0); }
+    40%  { transform: translateY(-14px); }
+    100% { transform: translateY(0); }
+  }
+
+  /* Drain layer: viewport-wide so balls fall through both halves. */
+  .drain-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 30;
+    overflow: visible;
+  }
+
+  /* ============================================================
+     INTRO BANNER + TAP HINT
+     ============================================================ */
+  .intro-banner {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 42;
+    padding: 9px 14px 7px;
+    background: linear-gradient(180deg, rgba(44, 36, 82, 0.94), rgba(107, 91, 183, 0.86));
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    transform: translateY(-110%);
+    animation: introDrop 600ms 100ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    pointer-events: none;
+  }
+  .intro-text {
+    font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 1px;
+  }
+  .intro-line-1 {
+    font-size: 19px; font-weight: 700;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+    color: #ffd24c;
+  }
+  .intro-line-2 {
+    font-size: 12px; font-weight: 500;
+    opacity: 0.9;
+    letter-spacing: 0.3px;
+  }
+  @keyframes introDrop {
+    0%   { transform: translateY(-110%); }
+    100% { transform: translateY(0); }
+  }
+
+  /* Tap hint: animated hand + pulsing ring on a random puzzle tile */
+  .tap-hint {
+    position: fixed;
+    width: 60px; height: 60px;
+    pointer-events: none;
+    z-index: 41;
+    opacity: 0;
+    transition: opacity 220ms ease;
+  }
+  .tap-hint.shown { opacity: 1; }
+  .tap-hint .hint-ring {
+    position: absolute;
+    inset: 0;
+    border: 3px solid #FFC73C;
+    border-radius: 50%;
+    animation: tapRing 1.4s ease-out infinite;
+  }
+  .tap-hint .hint-hand {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    animation: tapPulse 1.4s ease-in-out infinite;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5));
+  }
+  .tap-hint .hint-hand svg {
+    width: 36px; height: 36px;
+  }
+  @keyframes tapPulse {
+    0%, 100% { transform: scale(1) translateY(0); }
+    35%      { transform: scale(0.86) translateY(3px); }
+    55%      { transform: scale(0.86) translateY(3px); }
+    75%      { transform: scale(1) translateY(0); }
+  }
+  @keyframes tapRing {
+    0%   { transform: scale(0.65); opacity: 0.9; }
+    100% { transform: scale(1.85); opacity: 0; }
+  }
+  /* Demo-move: wrapper travels from pickup → drop, looping with fade-out.
+     --dx, --dy are set by JS as the px delta between the two tiles. */
+  .tap-hint.demo-move {
+    animation: handTravel 2.4s ease-in-out infinite;
+  }
+  @keyframes handTravel {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    7%   { transform: translate(0, 0); opacity: 1; }
+    28%  { transform: translate(0, 0); opacity: 1; }
+    62%  { transform: translate(var(--dx, 0), var(--dy, 0)); opacity: 1; }
+    82%  { transform: translate(var(--dx, 0), var(--dy, 0)); opacity: 1; }
+    92%  { transform: translate(var(--dx, 0), var(--dy, 0)); opacity: 0; }
+    100% { transform: translate(0, 0); opacity: 0; }
+  }
+
+  /* Disintegrate particles — top balls puff into confetti instead of falling. */
+  .disintegrate-particle {
+    position: fixed;
+    width: 9px; height: 13px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 35;
+    will-change: transform, opacity;
+    animation: disintegratePoof 1100ms ease-out forwards;
+  }
+  @keyframes disintegratePoof {
+    0%   { transform: translate(0, 0) rotate(0); opacity: 1; }
+    30%  { transform: translate(calc(var(--dx, 0px) * 0.55), -42px) rotate(calc(var(--rot, 0deg) * 0.4)); opacity: 1; }
+    100% { transform: translate(var(--dx, 0px), 220px) rotate(var(--rot, 0deg)); opacity: 0; }
+  }
+  .ball.disintegrating {
+    transition: opacity 280ms ease-out, transform 280ms ease-out;
+    opacity: 0;
+  }
+
+  /* Win flash: full-viewport white wash at the solve moment. */
+  .win-flash {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 45;
+  }
+  .win-flash.firing { animation: winFlash 320ms ease-out forwards; }
+  @keyframes winFlash {
+    0%   { opacity: 0; }
+    35%  { opacity: 0.85; }
+    100% { opacity: 0; }
+  }
+
+  /* Scene zoom on solve — adds drama on granny's rescue. */
+  .scene-top.celebrate { animation: sceneZoom 480ms ease-out; }
+  @keyframes sceneZoom {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.045); }
+    100% { transform: scale(1); }
+  }
+
+  /* Polygon overlay: visualizes the chasm collision shape when debug is on. */
+  .poly-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 8;
+    display: none;
+  }
+  body.debug-on .poly-overlay { display: block; }
+  .poly-fill {
+    fill: rgba(255, 200, 60, 0.10);
+    stroke: rgba(255, 200, 60, 0.85);
+    stroke-width: 2;
+    stroke-dasharray: 6 4;
+    vector-effect: non-scaling-stroke;
+  }
+  .poly-vertex {
+    fill: #ffc83c;
+    stroke: #fff;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .poly-normal {
+    stroke: rgba(255, 100, 100, 0.7);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* ============================================================
+     DEBUG HUD — toggle with the 'D' key or ?debug=1
+     ============================================================ */
+  body.debug-on .granny      { outline: 2px dashed #ff4477; outline-offset: -2px; }
+  body.debug-on .hazard      { outline: 2px dashed #ffaa22; outline-offset: -2px; }
+  body.debug-on .chasm-zone  { outline: 2px dashed #44aaff; outline-offset: -2px; background: rgba(68,170,255,0.12); }
+  body.debug-on .debug-selected { outline-width: 3px !important; outline-style: solid !important; box-shadow: 0 0 0 2px rgba(255,255,255,0.4), 0 0 18px currentColor; }
+  .debug-panel {
+    position: fixed;
+    bottom: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.88);
+    color: #fff;
+    font: 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+    padding: 10px 12px;
+    border-radius: 8px;
+    z-index: 100;
+    max-width: 280px;
+    pointer-events: auto;
+    user-select: text;
+    backdrop-filter: blur(4px);
+  }
+  .debug-title { font-weight: 700; margin-bottom: 8px; font-size: 12px; }
+  .debug-item {
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    border-left: 3px solid;
+    background: rgba(255,255,255,0.06);
+    border-radius: 0 4px 4px 0;
+  }
+  .debug-item:hover { background: rgba(255,255,255,0.12); }
+  .debug-item.sel { background: rgba(255,255,255,0.20); }
+  .debug-hint { margin-top: 8px; opacity: 0.65; font-size: 10px; line-height: 1.45; }
+  .debug-copy {
+    margin-top: 6px;
+    padding: 5px 10px;
+    background: #44aaff;
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    font: 700 11px/1 inherit;
+    cursor: pointer;
+  }
+  .debug-copy:hover { background: #6abbff; }
+
+  /* ============================================================
+     BOTTOM SCENE: puzzle (adapted from index.html)
+     ============================================================ */
+  .scene-bottom {
+    position: relative;
+    overflow: hidden;
+    background: #0e0a24;
+  }
+  /* Pulsing gold border — signals the puzzle is the interactive zone. */
+  .scene-bottom::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 3px solid var(--gold);
+    pointer-events: none;
+    z-index: 12;
+    animation: puzzleSpotlight 2.6s ease-in-out infinite;
+  }
+  .scene-bottom.solved::before { animation: none; opacity: 0; transition: opacity 600ms ease; }
+  @keyframes puzzleSpotlight {
+    0%, 100% { opacity: 0.25; box-shadow: 0 0 0 0 rgba(255, 199, 60, 0); }
+    50%      { opacity: 0.7;  box-shadow: 0 0 22px 4px rgba(255, 199, 60, 0.45); }
+  }
+  .coin {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #FFE27A, #E2A20D 70%, #8a5a00);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #6a4500;
+    font-weight: 900;
+  }
+  .grid {
+    --seam: #0e0a24;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 0;
+    padding: 1px 0 0 1px;
+    background: var(--seam);
+    position: relative;
+  }
+  .tile {
+    background-image: var(--puzzle-img);
+    background-size: 300% 300%;
+    background-repeat: no-repeat;
+    box-shadow: inset -1px -1px 0 var(--seam);
+    cursor: grab;
+    touch-action: none;
+    will-change: transform, background-position;
+    position: relative;
+  }
+  .tile.merged-right { box-shadow: inset 0 -1px 0 var(--seam); }
+  .tile.merged-down  { box-shadow: inset -1px 0 0 var(--seam); }
+  .tile.merged-right.merged-down { box-shadow: none; }
+  .tile.merge-flash { animation: mergeFlash 600ms ease-out; }
+  @keyframes mergeFlash {
+    0%   { filter: brightness(1); transform: scale(1); }
+    25%  { filter: brightness(1.45) drop-shadow(0 0 12px rgba(255,199,60,0.95)); transform: scale(1.04); }
+    100% { filter: brightness(1); transform: scale(1); }
+  }
+  .tile.pressing { transform: scale(1.03); z-index: 3; transition: transform 90ms ease-out; }
+  .tile.dragging {
+    z-index: 10;
+    cursor: grabbing;
+    box-shadow:
+      inset -1px -1px 0 var(--seam),
+      inset 1px 0 0 var(--seam),
+      inset 0 1px 0 var(--seam),
+      0 14px 28px rgba(0,0,0,0.45);
+    filter: brightness(1.05);
+  }
+  .tile.drop-target {
+    box-shadow:
+      inset -1px -1px 0 var(--seam),
+      inset 0 0 0 3px var(--gold);
+  }
+  .tile.hint-flash { animation: hintFlash 0.9s ease-in-out; }
+  @keyframes hintFlash {
+    0%, 100% { box-shadow: inset -1px -1px 0 var(--seam); }
+    50% { box-shadow: inset 0 0 0 3px var(--gold), 0 0 18px rgba(255,199,60,0.8); }
+  }
+  /* Near-solve hint: 1 tile away from done — flashes green. */
+  .tile.near-solve-pulse { animation: nearSolvePulse 900ms ease-in-out; }
+  @keyframes nearSolvePulse {
+    0%, 100% { box-shadow: inset -1px -1px 0 var(--seam); filter: brightness(1); }
+    50%      { box-shadow: inset 0 0 0 3px #6dd053, 0 0 18px rgba(109, 208, 83, 0.7); filter: brightness(1.15); }
+  }
+  /* First-moves assist: gold pulse on the tile to pick up. */
+  .tile.assist-pickup {
+    animation: assistPickup 1.2s ease-in-out infinite;
+    z-index: 5;
+  }
+  @keyframes assistPickup {
+    0%, 100% { box-shadow: inset 0 0 0 3px var(--gold), 0 0 14px rgba(255, 199, 60, 0.7);  filter: brightness(1.12); }
+    50%      { box-shadow: inset 0 0 0 4px var(--gold), 0 0 26px rgba(255, 199, 60, 1.0);  filter: brightness(1.30); }
+  }
+  /* First-moves assist: green pulse on the slot to drop into. */
+  .tile.assist-drop {
+    animation: assistDrop 1.2s ease-in-out infinite;
+    z-index: 4;
+  }
+  @keyframes assistDrop {
+    0%, 100% { box-shadow: inset 0 0 0 3px #6dd053; }
+    50%      { box-shadow: inset 0 0 0 4px #6dd053, 0 0 22px rgba(109, 208, 83, 0.85); }
+  }
+  .tile.locked { pointer-events: none; }
+
+  /* Win grid pulse */
+  .grid.won { animation: gridWinPulse 600ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes gridWinPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.06); filter: brightness(1.15) drop-shadow(0 0 30px rgba(255,199,60,0.8)); }
+    100% { transform: scale(1); }
+  }
+
+  /* ============================================================
+     WIN OVERLAY (reused from index.html)
+     ============================================================ */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 28%, rgba(255, 199, 60, 0.10) 0%, transparent 65%),
+      linear-gradient(180deg, #2a1e5a 0%, #14082b 55%, #07020f 100%);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 350ms ease;
+    z-index: 50;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay-stars { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .bg-star {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #fff;
+    clip-path: polygon(50% 0%, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0% 50%, 42% 42%);
+    will-change: transform, opacity;
+  }
+  .overlay-content {
+    position: relative;
+    width: 100%; max-width: 420px;
+    padding: 20px;
+    display: flex; flex-direction: column; align-items: center;
+    z-index: 2;
+  }
+  /* Small celebratory pill: 'Granny Saved!' */
+  .saved-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(255, 210, 76, 0.13);
+    border: 1px solid rgba(255, 210, 76, 0.38);
+    border-radius: 999px;
+    color: #ffd24c;
+    font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    opacity: 0;
+  }
+  .saved-pill::before {
+    content: '✦';
+    color: #ffd24c;
+    font-size: 11px;
+  }
+  .overlay.show .saved-pill { animation: savedReveal 450ms 100ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  @keyframes savedReveal {
+    0%   { transform: translateY(-12px) scale(0.92); opacity: 0; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  /* Main headline: 'Play Pic Merge!' — the moment of the outro */
+  .main-headline {
+    font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: clamp(28px, 9vw, 36px);
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 1.2px;
+    text-align: center;
+    margin: 0 0 18px;
+    text-shadow:
+      0 0 28px rgba(255, 199, 60, 0.45),
+      0 4px 12px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    line-height: 1.05;
+  }
+  .overlay.show .main-headline { animation: headlineDrop 600ms 250ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  @keyframes headlineDrop {
+    0%   { transform: translateY(-24px) scale(0.85); opacity: 0; }
+    60%  { transform: translateY(4px) scale(1.06);   opacity: 1; }
+    100% { transform: translateY(0) scale(1);         opacity: 1; }
+  }
+  /* Brand block — logo + tagline */
+  .brand-block {
+    display: flex; flex-direction: column; align-items: center;
+    margin: 0 0 16px;
+    gap: 10px;
+  }
+  .brand-logo {
+    width: 72%; max-width: 260px;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.55))
+            drop-shadow(0 0 24px rgba(255, 199, 60, 0.18));
+  }
+  .brand-tagline {
+    font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 13px; font-weight: 500;
+    color: rgba(255, 230, 166, 0.85);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+  }
+  .coin-reward {
+    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    padding: 4px 14px 4px 4px;
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 700; color: #fff; font-size: 14px;
+    margin: 0 0 22px;
+    backdrop-filter: blur(8px);
+  }
+  .coin-reward .coin { width: 22px; height: 22px; }
+
+  /* CTA: large pulsing Play Now button with shine sweep */
+  .cta-play {
+    position: relative;
+    overflow: hidden;
+    width: 86%; max-width: 320px;
+    padding: 18px 24px; margin-top: 4px;
+    display: block;
+    background: linear-gradient(180deg, #ffd24c, #ff8a1a);
+    color: #5a2900;
+    font-family: 'Fredoka', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 26px; font-weight: 700;
+    border: none; border-radius: 24px;
+    box-shadow: 0 6px 0 #b15800, 0 12px 18px rgba(0,0,0,0.3);
+    text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    letter-spacing: 1.2px;
+  }
+  .cta-play:active { transform: translateY(3px); box-shadow: 0 3px 0 #b15800, 0 6px 10px rgba(0,0,0,0.25); }
+  /* Diagonal shine sweep — periodically draws the eye to the CTA. */
+  .cta-play::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: -60%; width: 60%;
+    background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+    transform: translateX(0);
+    pointer-events: none;
+  }
+  .overlay.show .cta-play::before {
+    animation: ctaShine 2.6s 2050ms ease-in-out infinite;
+  }
+  @keyframes ctaShine {
+    0%, 25%  { transform: translateX(0);    opacity: 0; }
+    35%      { opacity: 1; }
+    65%      { opacity: 1; }
+    75%, 100% { transform: translateX(360%); opacity: 0; }
+  }
+
+  .overlay .brand-block, .overlay .cta-play { opacity: 0; }
+  .overlay .coin-reward { opacity: 0; transform: scale(0); }
+  .overlay.show .brand-block  { animation: brandReveal 500ms 550ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .overlay.show .coin-reward  { animation: coinPop     500ms 850ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .overlay.show .cta-play     { animation: ctaSlide    450ms 1100ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+                                           ctaPulse    1400ms 1550ms ease-in-out infinite; }
+  .overlay.show .bg-star      { animation: starTwinkle 1400ms ease-in-out infinite; }
+  @keyframes brandReveal { 0%{transform:scale(0.7);opacity:0} 70%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:1} }
+  @keyframes coinPop     { 0%{transform:scale(0);opacity:0} 70%{transform:scale(1.25);opacity:1} 100%{transform:scale(1);opacity:1} }
+  @keyframes ctaSlide    { 0%{transform:translateY(70px) scale(0.85);opacity:0} 60%{transform:translateY(-6px) scale(1.08);opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
+  @keyframes ctaPulse    { 0%,100%{transform:scale(1)} 50%{transform:scale(1.055)} }
+  @keyframes starTwinkle { 0%,100%{opacity:var(--star-base,0.5);transform:var(--star-tf) scale(0.9)} 50%{opacity:calc(var(--star-base,0.5) + 0.3);transform:var(--star-tf) scale(1.15)} }
+
+  /* Sparkle + confetti (reused) */
+  .sparkle {
+    position: fixed;
+    width: 10px; height: 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 25;
+    animation: sparkleBurst 900ms ease-out forwards;
+  }
+  @keyframes sparkleBurst {
+    0%   { transform: translate(0,0) scale(0.4); opacity: 1; }
+    100% { transform: var(--end) scale(1.3);     opacity: 0; }
+  }
+  .confetti {
+    position: fixed;
+    top: -24px;
+    width: 8px; height: 14px;
+    border-radius: 2px;
+    z-index: 25;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- =========== TOP SCENE =========== -->
+  <div class="scene-top" id="sceneTop">
+    <div class="chasm-zone" id="chasmZone"></div>
+    <div class="fallers" id="fallers"></div>
+    <svg class="poly-overlay" id="polyOverlay" preserveAspectRatio="none"></svg>
+
+    <img class="hazard" src="assets/hazard.png" alt="" aria-hidden="true">
+
+    <div class="granny" id="granny" data-state="scared" aria-hidden="true">
+      <img class="g-idle"   src="assets/granny-idle.png"   alt="">
+      <img class="g-scared" src="assets/granny-scared.png" alt="">
+      <img class="g-saved"  src="assets/granny-saved.png"  alt="">
+    </div>
+  </div>
+
+  <!-- =========== BOTTOM SCENE: PUZZLE =========== -->
+  <div class="scene-bottom">
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<!-- =========== DRAIN LAYER (viewport-wide, balls fall through both halves) =========== -->
+<div class="drain-layer" id="drainLayer"></div>
+
+<!-- =========== INTRO BANNER + TAP HINT =========== -->
+<div class="intro-banner" id="introBanner">
+  <div class="intro-text">
+    <span class="intro-line-1">Save Grandma!</span>
+    <span class="intro-line-2">Solve the puzzle to drain the balls</span>
+  </div>
+</div>
+<div class="tap-hint" id="tapHint" aria-hidden="true">
+  <div class="hint-ring"></div>
+  <div class="hint-hand">
+    <svg viewBox="0 0 24 24" fill="white">
+      <path d="M9 11.5V5a2 2 0 1 1 4 0v6.5l1-1a2 2 0 1 1 2.83 2.83l-1 1a2 2 0 1 1 2.83 2.83l-1 1A6 6 0 0 1 6 14V6.5a1.5 1.5 0 1 1 3 0V11.5z"/>
+    </svg>
+  </div>
+</div>
+
+<!-- =========== WIN FLASH =========== -->
+<div class="win-flash" id="winFlash"></div>
+
+<!-- =========== WIN OVERLAY =========== -->
+<div class="overlay" id="winOverlay">
+  <div class="overlay-stars" id="overlayStars"></div>
+  <div class="overlay-content">
+    <div class="saved-pill">Granny Saved</div>
+    <h1 class="main-headline">Play Pic Merge!</h1>
+    <div class="brand-block">
+      <img class="brand-logo" src="assets/logo.webp" alt="PicMerge">
+      <div class="brand-tagline">1000+ free puzzles await</div>
+    </div>
+    <div class="coin-reward"><span class="coin">$</span><span>+5 reward</span></div>
+    <button class="cta-play" id="ctaBtn">PLAY NOW</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// AUDIO (shared between scenes)
+// ============================================================
+const audio = (() => {
+  let ctx = null, master = null, sfxBus = null, musicBus = null;
+  let muted = false, musicStarted = false;
+  const prevMute = 0.7;
+  let lastThud = 0;
+
+  function ensureCtx() {
+    if (ctx) return ctx;
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();  master.gain.value = 0.7; master.connect(ctx.destination);
+      sfxBus = ctx.createGain();  sfxBus.gain.value = 1.0; sfxBus.connect(master);
+      musicBus = ctx.createGain(); musicBus.gain.value = 0.22; musicBus.connect(master);
+    } catch (e) { /* audio unsupported */ }
+    return ctx;
+  }
+  function unlock() {
+    ensureCtx();
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+    // Background music disabled — SFX only.
+  }
+  function tone(freq, dur, { type = 'sine', attack = 0.005, gain = 0.25, bus = sfxBus } = {}) {
+    if (!ctx || muted) return;
+    const osc = ctx.createOscillator(), env = ctx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    env.gain.value = 0;
+    osc.connect(env); env.connect(bus);
+    const t = ctx.currentTime;
+    env.gain.linearRampToValueAtTime(gain, t + attack);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  }
+  function playPickup() { tone(660, 0.06, { type: 'triangle', gain: 0.14 }); }
+  function playDrop()   { tone(330, 0.09, { type: 'triangle', gain: 0.12 }); }
+  function playMerge() {
+    [523.25, 659.25, 783.99, 1046.50].forEach((f, i) =>
+      setTimeout(() => tone(f, 0.32, { type: 'triangle', gain: 0.22 }), i * 55)
+    );
+  }
+  function playWin() {
+    [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((f, i) =>
+      setTimeout(() => tone(f, 0.45, { type: 'triangle', gain: 0.3 }), i * 110)
+    );
+  }
+  // Brief chord swell played just before the win arpeggio for extra drama.
+  function playChordSwell() {
+    [261.63, 329.63, 392.00].forEach(f => {
+      tone(f, 0.55, { type: 'sine',     gain: 0.18, attack: 0.06 });
+      tone(f * 2, 0.55, { type: 'sawtooth', gain: 0.06, attack: 0.06 });
+    });
+  }
+  // Intro chime: rising sweep when the banner first appears.
+  function playIntro() {
+    if (!ctx || muted) return;
+    const osc = ctx.createOscillator(), env = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 110;
+    env.gain.value = 0;
+    osc.connect(env); env.connect(sfxBus);
+    const t = ctx.currentTime;
+    env.gain.linearRampToValueAtTime(0.18, t + 0.05);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.4);
+    osc.start(t); osc.stop(t + 0.45);
+  }
+  // Soft click for the CTA button.
+  function playCtaTap() { tone(220, 0.08, { type: 'triangle', gain: 0.22 }); }
+  // Whoosh + sparkle ding when the CTA enters — pulls attention to it.
+  function playCtaReveal() {
+    if (!ctx || muted) return;
+    // Rising sweep (whoosh)
+    const osc = ctx.createOscillator(), env = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 320;
+    env.gain.value = 0;
+    osc.connect(env); env.connect(sfxBus);
+    const t = ctx.currentTime;
+    env.gain.linearRampToValueAtTime(0.18, t + 0.04);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    osc.frequency.exponentialRampToValueAtTime(900, t + 0.32);
+    osc.start(t); osc.stop(t + 0.36);
+    // Sparkle ding on top
+    setTimeout(() => tone(1318.51, 0.22, { type: 'triangle', gain: 0.22 }), 120);
+    setTimeout(() => tone(1760,    0.18, { type: 'triangle', gain: 0.18 }), 220);
+  }
+  function playThud() {
+    const now = performance.now();
+    if (now - lastThud < 60) return;
+    lastThud = now;
+    tone(85,  0.09, { type: 'sine',     gain: 0.18, attack: 0.001 });
+    tone(140, 0.04, { type: 'triangle', gain: 0.06, attack: 0.001 });
+  }
+  function playWallBreak() {
+    tone(180, 0.12, { type: 'sawtooth', gain: 0.25, attack: 0.001 });
+    tone(70,  0.45, { type: 'square',   gain: 0.18, attack: 0.005 });
+  }
+  function playDrainRumble() {
+    if (!ctx || muted) return;
+    const osc = ctx.createOscillator(), env = ctx.createGain();
+    osc.type = 'sawtooth'; osc.frequency.value = 110;
+    env.gain.value = 0;
+    osc.connect(env); env.connect(sfxBus);
+    const t = ctx.currentTime;
+    env.gain.linearRampToValueAtTime(0.22, t + 0.05);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    osc.frequency.exponentialRampToValueAtTime(55, t + 0.7);
+    osc.start(t); osc.stop(t + 0.75);
+  }
+  function startMusic() {
+    if (!ctx) return;
+    const chords = [
+      [261.63, 329.63, 392.00],
+      [220.00, 261.63, 329.63],
+      [174.61, 220.00, 261.63],
+      [196.00, 246.94, 293.66],
+    ];
+    const beatDur = 3.6;
+    const pad = [];
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      const filt = ctx.createBiquadFilter();
+      const env = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.detune.value = (i - 1) * 6;
+      osc.frequency.value = chords[0][i];
+      filt.type = 'lowpass'; filt.frequency.value = 900; filt.Q.value = 1;
+      env.gain.value = 0;
+      osc.connect(filt); filt.connect(env); env.connect(musicBus);
+      osc.start();
+      pad.push({ osc, env });
+    }
+    let beat = 0;
+    function nextChord() {
+      const chord = chords[beat % chords.length];
+      const t = ctx.currentTime;
+      pad.forEach((p, i) => {
+        p.osc.frequency.linearRampToValueAtTime(chord[i], t + 0.6);
+        if (beat === 0) p.env.gain.linearRampToValueAtTime(0.055, t + 1.5);
+      });
+      beat++;
+    }
+    nextChord();
+    setInterval(nextChord, beatDur * 1000);
+  }
+  function setMuted(m) {
+    muted = m;
+    ensureCtx();
+    if (master) {
+      const t = ctx.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.linearRampToValueAtTime(m ? 0 : prevMute, t + 0.15);
+    }
+  }
+  function isMuted() { return muted; }
+  return { unlock, playPickup, playDrop, playMerge, playWin, playChordSwell, playIntro, playCtaTap, playCtaReveal, playThud, playWallBreak, playDrainRumble, setMuted, isMuted };
+})();
+
+// ============================================================
+// PUZZLE POLYGON — used during the post-solve drain.
+// Coords are in 0..1 (% of scene-bottom width/height).
+// Traced over pic.png (1254×1254) via image-map.net, normalized by /1254.
+// ============================================================
+let puzzlePolygon = [
+  { x: 0.362, y: -0.5  },   // pushed ABOVE viewport — opens the top
+  { x: 0.376, y: 0.246 },
+  { x: 0.380, y: 0.374 },
+  { x: 0.383, y: 0.649 },
+  { x: 0.358, y: 0.685 },
+  { x: 0.310, y: 0.690 },
+  { x: 0.277, y: 0.687 },
+  { x: 0.278, y: 1.5   },   // pushed BELOW viewport — opens the bottom
+  { x: 0.635, y: 1.5   },   // pushed BELOW viewport — opens the bottom
+  { x: 0.635, y: 0.659 },
+  { x: 0.884, y: 0.648 },
+  { x: 0.884, y: 0.521 },
+  { x: 0.820, y: 0.518 },
+  { x: 0.809, y: 0.467 },
+  { x: 0.637, y: 0.463 },
+  { x: 0.622, y: 0.442 },
+  { x: 0.628, y: 0.238 },
+  { x: 0.639, y: -0.5  },   // pushed ABOVE viewport — opens the top
+];
+
+// ============================================================
+// CHASM POLYGON — collision shape for the balls during play.
+// Coords are in 0..1 (% of scene-top width/height).
+// Traced over bg-top.jpg (1254×1254) via image-map.net, normalized by /1254.
+// ============================================================
+let chasmPolygon = [
+  { x: 0.128, y: 0.004 },
+  { x: 0.129, y: 0.104 },
+  { x: 0.148, y: 0.106 },
+  { x: 0.419, y: 0.329 },
+  { x: 0.423, y: 0.717 },
+  { x: 0.364, y: 0.788 },
+  { x: 0.367, y: 0.990 },
+  { x: 0.587, y: 0.993 },
+  { x: 0.577, y: 0.771 },
+  { x: 0.539, y: 0.703 },
+  { x: 0.524, y: 0.616 },
+  { x: 0.526, y: 0.606 },
+  { x: 0.526, y: 0.427 },
+  { x: 0.524, y: 0.411 },
+  { x: 0.885, y: 0.110 },
+  { x: 0.895, y: 0.002 },
+];
+
+// ============================================================
+// TOP SCENE: balls, lady states, drain sequence
+// ============================================================
+const topScene = (() => {
+  const sceneTop   = document.getElementById('sceneTop');
+  const fallersEl  = document.getElementById('fallers');
+  const polyOverlay = document.getElementById('polyOverlay');
+  const granny     = document.getElementById('granny');
+  const drainLayer = document.getElementById('drainLayer');
+
+  const SPAWN_MS         = 35;       // ~28 balls/sec
+  const GRAVITY          = 0.10;     // px / frame²  (slow drift during play)
+  const DRAIN_GRAVITY    = 0.55;     // heavier gravity once the chasm opens
+  const DRAIN_KICK_VY    = 3.0;      // initial downward velocity on drain start
+  const DRAIN_WAVE_SIZE  = 6;        // balls released per wave
+  const DRAIN_WAVE_MS    = 22;       // ms between waves (bottom-up release)
+  const AIR_FRICTION     = 0.992;    // velocity damping per frame
+  const PHYSICS_ITERS    = 8;        // constraint solver passes per frame
+
+  // Drain channel: narrow vertical rectangle, ignores the puzzle polygon's
+  // alcove bulge so balls form a tight stream instead of fanning out.
+  // % of scene-bottom width/height. Open above and below the viewport.
+  const DRAIN_CHANNEL_POLY = [
+    { x: 0.38, y: -0.3 },
+    { x: 0.62, y: -0.3 },
+    { x: 0.62,  y: 1.3 },
+    { x: 0.38,  y: 1.3 },
+  ];
+  const SLEEP_VEL_SQ     = 0.12;     // movement² threshold for sleep
+  const SLEEP_FRAMES     = 10;       // frames of low movement before sleep
+  const WAKE_OVERLAP     = 1.5;      // overlap (px) that wakes a sleeping ball
+
+  // Each ball: { el, x, y, prevX, prevY, sleeping, framesAtRest, thudPlayed }
+  // Verlet integration: implicit velocity = (x - prevX, y - prevY). Position
+  // correction for collisions/walls naturally dampens velocity.
+  // Coords are in scene-top local pixels.
+  let balls = [];
+  let pileCap = false;
+  let appState = 'boot';
+  let sceneRect = null;
+  let ballDiam = 22;
+
+  // Polygon-derived state (recomputed on resize / polygon change).
+  let chasmEdges  = [];   // play-time edges (scene-top local coords)
+  let drainEdges  = [];   // post-solve drain edges (viewport coords)
+  let activeEdges = [];   // whichever is currently used by tick()
+  let draining    = false;
+  let polyTopY    = 0;
+  let polyBottomY = 0;
+  let spawnXMin   = 0;
+  let spawnXMax   = 0;
+  let maxPileY    = 0;
+
+  let spawnTimer = null;
+  let rafId = null;
+
+  function recomputeGeometry() {
+    sceneRect = sceneTop.getBoundingClientRect();
+    // Size balls so ~6 fit across the polygon's widest extent (half size).
+    const polyW = polygonWidthAtY(0.5) || sceneRect.width * 0.13;
+    ballDiam = Math.max(7, Math.min(15, Math.floor(polyW / 6.4)));
+    document.documentElement.style.setProperty('--ball-d', ballDiam + 'px');
+    computeChasmEdges();
+    if (!draining) activeEdges = chasmEdges;
+    renderPolyOverlay();
+  }
+
+  // Build polygon edges (in viewport coords) for the puzzle drain phase.
+  // Uses DRAIN_CHANNEL_POLY (narrow vertical strip) so balls funnel into a
+  // tight stream — overriding the wider, alcove-shaped puzzle polygon.
+  function computeDrainEdges() {
+    drainEdges = [];
+    const channel = DRAIN_CHANNEL_POLY;
+    if (channel.length < 3) return;
+    const sb = document.querySelector('.scene-bottom').getBoundingClientRect();
+    const W = sb.width, H = sb.height;
+    const X0 = sb.left, Y0 = sb.top;
+    const pts = channel.map(p => ({ x: X0 + p.x * W, y: Y0 + p.y * H }));
+    let shoelace = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      shoelace += p1.x * p2.y - p2.x * p1.y;
+    }
+    const insideOnLeft = shoelace < 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      let nx, ny;
+      if (insideOnLeft) { nx =  dy; ny = -dx; }
+      else              { nx = -dy; ny =  dx; }
+      const len = Math.sqrt(nx*nx + ny*ny) || 1;
+      nx /= len; ny /= len;
+      drainEdges.push({ p1, p2, nx, ny });
+    }
+  }
+
+  // Width of the polygon's bounding box at a given normalized y (used only
+  // to estimate ball size at boot).
+  function polygonWidthAtY(yFrac) {
+    let minX = Infinity, maxX = -Infinity;
+    for (const p of chasmPolygon) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+    }
+    return (maxX - minX) * sceneRect.width;
+  }
+
+  function computeChasmEdges() {
+    const W = sceneRect.width, H = sceneRect.height;
+    const pts = chasmPolygon.map(p => ({ x: p.x * W, y: p.y * H }));
+    if (pts.length < 3) { chasmEdges = []; return; }
+
+    // Determine winding via shoelace. In screen coords (y-down):
+    //   shoelace > 0  → visually CW (inside on RIGHT of motion → RIGHT-perpendicular)
+    //   shoelace < 0  → visually CCW (inside on LEFT of motion → LEFT-perpendicular)
+    // This is correct for concave polygons; centroid-based normals are NOT.
+    let shoelace = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      shoelace += p1.x * p2.y - p2.x * p1.y;
+    }
+    const insideOnLeft = shoelace < 0;
+
+    chasmEdges = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      let nx, ny;
+      if (insideOnLeft) { nx =  dy; ny = -dx; }  // LEFT-perp
+      else              { nx = -dy; ny =  dx; }  // RIGHT-perp
+      const len = Math.sqrt(nx*nx + ny*ny) || 1;
+      nx /= len; ny /= len;
+      chasmEdges.push({ p1, p2, nx, ny });
+    }
+
+    // Polygon vertical extent + spawn x-range (from vertices in top 15%).
+    let polyMinY = Infinity, polyMaxY = -Infinity;
+    for (const p of pts) {
+      if (p.y < polyMinY) polyMinY = p.y;
+      if (p.y > polyMaxY) polyMaxY = p.y;
+    }
+    polyTopY = polyMinY;
+    polyBottomY = polyMaxY;
+    const topBand = polyMinY + (polyMaxY - polyMinY) * 0.15;
+    let minTopX = Infinity, maxTopX = -Infinity;
+    for (const p of pts) {
+      if (p.y <= topBand) {
+        if (p.x < minTopX) minTopX = p.x;
+        if (p.x > maxTopX) maxTopX = p.x;
+      }
+    }
+    if (minTopX === Infinity) {
+      for (const p of pts) {
+        if (p.x < minTopX) minTopX = p.x;
+        if (p.x > maxTopX) maxTopX = p.x;
+      }
+    }
+    spawnXMin = minTopX;
+    spawnXMax = maxTopX;
+    // Pile cap: fill all the way to the very top of the polygon (max intensity).
+    maxPileY = polyTopY;
+  }
+
+  // Render the polygon as an SVG overlay (visible only when debug is on).
+  function renderPolyOverlay() {
+    if (!polyOverlay) return;
+    const W = sceneRect.width, H = sceneRect.height;
+    polyOverlay.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const pts = chasmPolygon.map(p => `${(p.x * W).toFixed(1)},${(p.y * H).toFixed(1)}`).join(' ');
+    const vertCircles = chasmPolygon.map(p =>
+      `<circle class="poly-vertex" cx="${(p.x * W).toFixed(1)}" cy="${(p.y * H).toFixed(1)}" r="4"/>`
+    ).join('');
+    const normals = chasmEdges.map(e => {
+      const mx = (e.p1.x + e.p2.x) / 2;
+      const my = (e.p1.y + e.p2.y) / 2;
+      const L = 10;
+      return `<line class="poly-normal" x1="${mx.toFixed(1)}" y1="${my.toFixed(1)}" x2="${(mx + e.nx*L).toFixed(1)}" y2="${(my + e.ny*L).toFixed(1)}"/>`;
+    }).join('');
+    polyOverlay.innerHTML = `<polygon class="poly-fill" points="${pts}"/>${normals}${vertCircles}`;
+  }
+
+  // Top Y of the SETTLED pile (sleeping balls only) — in-flight balls
+  // above the scene are not part of the pile and would falsely trigger the cap.
+  const MAX_BALLS = 900;
+  function getPileTop() {
+    let top = polyBottomY;
+    for (const b of balls) if (b.sleeping && b.y < top) top = b.y;
+    return top;
+  }
+
+  function spawnBall() {
+    if (appState !== 'playing' || pileCap) return;
+    if (balls.length >= MAX_BALLS) return;
+    if (getPileTop() <= maxPileY) {
+      pileCap = true;
+      setState('tense');
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'ball';
+    fallersEl.appendChild(el);
+    // Spawn within the polygon's top-edge x range so balls fall straight in.
+    const range = Math.max(0, spawnXMax - spawnXMin - ballDiam);
+    const x  = spawnXMin + Math.random() * range;
+    const vx = (Math.random() - 0.5) * 0.6;
+    const vy = 0.4;
+    balls.push({
+      el, x, y: -ballDiam,
+      prevX: x - vx, prevY: -ballDiam - vy,
+      sleeping: false, framesAtRest: 0, thudPlayed: false,
+    });
+  }
+
+  function tick() {
+    // 1. Integrate (Verlet) — heavier gravity once the chasm opens (drain).
+    const g = draining ? DRAIN_GRAVITY : GRAVITY;
+    for (const b of balls) {
+      if (b.sleeping) continue;
+      // During drain, balls awaiting their wave are frozen in place.
+      if (draining && !b.draining) continue;
+      const vx = (b.x - b.prevX) * AIR_FRICTION;
+      const vy = (b.y - b.prevY) * AIR_FRICTION + g;
+      b.prevX = b.x;
+      b.prevY = b.y;
+      b.x += vx;
+      b.y += vy;
+    }
+
+    // 2. Solve constraints (polygon edges + ball-ball) over several iterations.
+    const r = ballDiam / 2;
+    for (let iter = 0; iter < PHYSICS_ITERS; iter++) {
+      // Polygon edges (chasmEdges during play, drainEdges during drain)
+      for (const b of balls) {
+        if (b.sleeping) continue;
+        if (draining && !b.draining) continue;
+        const bcx = b.x + r;
+        const bcy = b.y + r;
+        for (const e of activeEdges) {
+          // Closest point on segment to ball center
+          const ex = e.p2.x - e.p1.x;
+          const ey = e.p2.y - e.p1.y;
+          const ax = bcx - e.p1.x;
+          const ay = bcy - e.p1.y;
+          const len2 = ex*ex + ey*ey;
+          let t = (ax*ex + ay*ey) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const cx = e.p1.x + t*ex;
+          const cy = e.p1.y + t*ey;
+          const dx = bcx - cx;
+          const dy = bcy - cy;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist >= r) continue;
+          // Push direction — prefer (ball - closest), fall back to inward normal.
+          let pnx, pny;
+          if (dist > 0.01) {
+            pnx = dx / dist;
+            pny = dy / dist;
+            // Make sure we push into the interior (positive dot with normal).
+            if (pnx * e.nx + pny * e.ny < 0) { pnx = e.nx; pny = e.ny; }
+          } else {
+            pnx = e.nx; pny = e.ny;
+          }
+          // Thud on first significant impact with a roughly-horizontal floor.
+          if (!b.thudPlayed && (b.y - b.prevY) > 0.8 && e.ny < -0.3) {
+            audio.playThud(); b.thudPlayed = true;
+          }
+          const push = r - dist + 0.01;
+          b.x += pnx * push;
+          b.y += pny * push;
+        }
+      }
+
+      // Ball-ball collisions
+      const n = balls.length;
+      for (let i = 0; i < n; i++) {
+        const a = balls[i];
+        // During drain, balls in scene-top and drain-layer live in different
+        // coord systems — skip any pair that mixes the two (or both frozen).
+        if (draining && !a.draining) continue;
+        for (let j = i + 1; j < n; j++) {
+          const b = balls[j];
+          if (draining && !b.draining) continue;
+          if (a.sleeping && b.sleeping) continue;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dsq = dx*dx + dy*dy;
+          if (dsq >= ballDiam * ballDiam) continue;
+          const dist = Math.sqrt(dsq) || 0.01;
+          const overlap = ballDiam - dist;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          if (!a.sleeping && !b.sleeping) {
+            const half = overlap * 0.5;
+            a.x -= nx * half; a.y -= ny * half;
+            b.x += nx * half; b.y += ny * half;
+          } else if (!a.sleeping) {
+            a.x -= nx * overlap; a.y -= ny * overlap;
+            if (overlap > WAKE_OVERLAP) b.sleeping = false;
+          } else {
+            b.x += nx * overlap; b.y += ny * overlap;
+            if (overlap > WAKE_OVERLAP) a.sleeping = false;
+          }
+          if (!a.thudPlayed && !a.sleeping) {
+            const sp = (a.x - a.prevX) ** 2 + (a.y - a.prevY) ** 2;
+            if (sp > 1.5) { audio.playThud(); a.thudPlayed = true; }
+          }
+          if (!b.thudPlayed && !b.sleeping) {
+            const sp = (b.x - b.prevX) ** 2 + (b.y - b.prevY) ** 2;
+            if (sp > 1.5) { audio.playThud(); b.thudPlayed = true; }
+          }
+        }
+      }
+    }
+
+    // 3. Sleep detection
+    for (const b of balls) {
+      if (b.sleeping) continue;
+      const dx = b.x - b.prevX;
+      const dy = b.y - b.prevY;
+      if (dx*dx + dy*dy < SLEEP_VEL_SQ) {
+        if (++b.framesAtRest > SLEEP_FRAMES) b.sleeping = true;
+      } else {
+        b.framesAtRest = 0;
+      }
+    }
+
+    // 4. Render — settled balls get squashed proportionally to pile depth,
+    //    suggesting the weight of balls above pressing down on them.
+    const polyH = polyBottomY - polyTopY || 1;
+    for (const b of balls) {
+      if (!b.el) continue;  // disintegrated — element already gone
+      let extra = '';
+      if (b.sleeping) {
+        const depth = Math.max(0, Math.min(1, (b.y - polyTopY) / polyH));
+        // sx grows >1 (horizontal bulge), sy shrinks <1 (vertical squash).
+        const sx = 1 + depth * 0.16;
+        const sy = 1 - depth * 0.12;
+        extra = ` scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`;
+      }
+      b.el.style.transform = `translate3d(${b.x}px, ${b.y}px, 0)${extra}`;
+    }
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function setState(next) {
+    if (appState === next) return;
+    appState = next;
+    if (next === 'playing') {
+      // Granny panics from the start — balls are already falling.
+      granny.dataset.state = 'scared';
+    } else if (next === 'tense') {
+      granny.dataset.state = 'scared';
+    } else if (next === 'solving') {
+      granny.dataset.state = 'saved';
+    } else if (next === 'draining') {
+      drainBalls();
+    } else if (next === 'won') {
+      document.dispatchEvent(new CustomEvent('drain:done'));
+    }
+  }
+
+  // On puzzle solve: split the pile by height —
+  //   bottom 60% drain through the narrow chasm channel
+  //   top 40%    poof into confetti where they sit
+  // The poof avoids the long awkward fall of upper balls + acts as celebration.
+  function drainBalls() {
+    audio.playDrainRumble();
+    computeDrainEdges();
+
+    const stRect = sceneTop.getBoundingClientRect();
+
+    // Freeze every ball; releaseBall / disintegrateBall unlocks them per wave.
+    for (const b of balls) b.draining = false;
+
+    // Sort snapshot by Y descending — bottom-most first.
+    const releaseOrder = balls.slice().sort((a, b) => b.y - a.y);
+    const drainCount = Math.floor(releaseOrder.length * 0.60);
+    const drainList       = releaseOrder.slice(0, drainCount);
+    const disintegrateList = releaseOrder.slice(drainCount);
+
+    draining = true;
+    activeEdges = drainEdges;
+
+    // Phase 1: bottom balls cascade through the chasm.
+    drainList.forEach((b, i) => {
+      const wave = Math.floor(i / DRAIN_WAVE_SIZE);
+      setTimeout(() => releaseBall(b, stRect), wave * DRAIN_WAVE_MS);
+    });
+
+    // Phase 2: top balls disintegrate into confetti.
+    const phase2Start = Math.ceil(drainList.length / DRAIN_WAVE_SIZE) * DRAIN_WAVE_MS;
+    disintegrateList.forEach((b, i) => {
+      setTimeout(() => disintegrateBall(b, stRect), phase2Start + i * 18);
+    });
+
+    // Final cleanup: longest of (drain release + fall) or (poof release + anim).
+    const drainEnd  = phase2Start + 400;
+    const poofEnd   = phase2Start + disintegrateList.length * 18 + 900;
+    const drainDuration = Math.max(1250, Math.max(drainEnd, poofEnd));
+    setTimeout(() => {
+      drainLayer.innerHTML = '';
+      balls = [];
+      draining = false;
+      activeEdges = chasmEdges;
+      setState('won');
+    }, drainDuration);
+  }
+
+  // Move a single ball into the drain layer with viewport coords + a kick.
+  function releaseBall(b, stRect) {
+    if (!b || !b.el || !b.el.isConnected) return;
+    b.x     += stRect.left;
+    b.y     += stRect.top;
+    const kick = DRAIN_KICK_VY + Math.random() * 1.5;
+    b.prevX = b.x + (Math.random() - 0.5) * 0.4;
+    b.prevY = b.y - kick;
+    b.sleeping = false;
+    b.framesAtRest = 0;
+    b.thudPlayed = false;
+    b.draining = true;
+    drainLayer.appendChild(b.el);
+    b.el.style.transform = `translate3d(${b.x}px, ${b.y}px, 0)`;
+  }
+
+  // Disintegrate a ball into a small burst of confetti particles, then remove.
+  function disintegrateBall(b, stRect) {
+    if (!b || !b.el || !b.el.isConnected) return;
+    const px = b.x + stRect.left + ballDiam / 2;
+    const py = b.y + stRect.top  + ballDiam / 2;
+    const colors = ['#FFC73C', '#ff8e42', '#6dd053', '#a18cf0', '#F8C8DF', '#ffffff'];
+    for (let i = 0; i < 5; i++) {
+      const p = document.createElement('div');
+      p.className = 'disintegrate-particle';
+      p.style.left = (px - 4.5) + 'px';
+      p.style.top  = (py - 6.5) + 'px';
+      p.style.background = colors[Math.floor(Math.random() * colors.length)];
+      // Mostly-upward random launch direction; vary distance per particle.
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.9;
+      const dist  = 50 + Math.random() * 80;
+      p.style.setProperty('--dx',  (Math.cos(angle) * dist).toFixed(1) + 'px');
+      p.style.setProperty('--rot', ((Math.random() * 720) - 360).toFixed(0) + 'deg');
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 1150);
+    }
+    // Mark the ball done so physics + render skip it; fade and remove element.
+    b.draining = true;
+    b.sleeping = true;
+    b.el.classList.add('disintegrating');
+    const el = b.el;
+    b.el = null;
+    setTimeout(() => { if (el && el.parentNode) el.remove(); }, 320);
+  }
+
+  function onPuzzleWon() {
+    if (appState === 'won' || appState === 'draining' || appState === 'solving') return;
+    setState('solving');
+    setTimeout(() => setState('draining'), 200);
+  }
+
+  function init() {
+    recomputeGeometry();
+    window.addEventListener('resize', recomputeGeometry);
+    document.addEventListener('puzzle:won', onPuzzleWon);
+    setState('playing');
+    spawnTimer = setInterval(spawnBall, SPAWN_MS);
+    tick();
+  }
+
+  return { init, setState: (s) => setState(s) };
+})();
+
+// ============================================================
+// PUZZLE (adapted from index.html)
+// ============================================================
+(() => {
+  const GRID = 3;
+  const TOTAL = GRID * GRID;
+  const grid = document.getElementById('grid');
+  const winOverlay = document.getElementById('winOverlay');
+  const ctaBtn  = document.getElementById('ctaBtn');
+  const tapHint = document.getElementById('tapHint');
+
+  let tiles = [];
+  let history = [];
+  let solved = false;
+  let animating = false;
+  let prevMergeKeys = new Set();
+  let suppressMergeFx = false;
+  let overlayShown = false;
+  let assistMovesLeft = 3;  // number of guided moves to show at start
+  let lastPickSlot = -1;    // for tracking hand position across resize
+  const DRAG_THRESHOLD = 6;
+
+  // ---- Assist (first-moves guided tutorial) ----
+  function positionHintOnTile(el) {
+    if (!el || !tapHint) return;
+    const r = el.getBoundingClientRect();
+    tapHint.style.left = (r.left + r.width / 2 - 30) + 'px';
+    tapHint.style.top  = (r.top  + r.height / 2 - 30) + 'px';
+  }
+  function showHint() { if (tapHint) tapHint.classList.add('shown'); }
+  function hideHint() {
+    if (!tapHint) return;
+    // Drop demo-move too — its keyframe owns opacity, so just clearing
+    // .shown wouldn't actually make the hand invisible during a travel.
+    tapHint.classList.remove('shown', 'demo-move');
+  }
+
+  function clearAssistClasses() {
+    grid.querySelectorAll('.tile.assist-pickup, .tile.assist-drop').forEach(t => {
+      t.classList.remove('assist-pickup', 'assist-drop');
+    });
+  }
+
+  function applyAssist() {
+    clearAssistClasses();
+    if (assistMovesLeft <= 0 || solved) {
+      hideHint();
+      lastPickSlot = -1;
+      return;
+    }
+    // Gather misplaced slots; prefer a 2-cycle (cleanest swap demo).
+    const wrongSlots = [];
+    for (let i = 0; i < TOTAL; i++) if (tiles[i] !== i) wrongSlots.push(i);
+    if (wrongSlots.length === 0) {
+      hideHint();
+      lastPickSlot = -1;
+      return;
+    }
+    let pickSlot = wrongSlots[0];
+    for (const s of wrongSlots) {
+      const dest = tiles[s];
+      if (tiles[dest] === s) { pickSlot = s; break; }
+    }
+    const dropSlot = tiles[pickSlot];
+    const pickEl = getTileEl(pickSlot);
+    const dropEl = getTileEl(dropSlot);
+    if (pickEl) pickEl.classList.add('assist-pickup');
+    if (dropEl) dropEl.classList.add('assist-drop');
+    lastPickSlot = pickSlot;
+    if (pickEl) {
+      positionHintOnTile(pickEl);
+      // First 2 assists: animate the hand traveling from pickup → drop to
+      // actively demonstrate the move. Third assist: just a static pulse.
+      if (tapHint) {
+        tapHint.classList.remove('demo-move');
+        if (assistMovesLeft >= 2 && dropEl) {
+          const r1 = pickEl.getBoundingClientRect();
+          const r2 = dropEl.getBoundingClientRect();
+          const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
+          const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
+          tapHint.style.setProperty('--dx', dx + 'px');
+          tapHint.style.setProperty('--dy', dy + 'px');
+          // Force a reflow so the animation restarts cleanly on each call.
+          void tapHint.offsetWidth;
+          tapHint.classList.add('demo-move');
+        }
+      }
+      showHint();
+    }
+  }
+
+  // Re-run the full assist on resize so both the hand's start position and
+  // its travel delta (--dx, --dy) get recomputed.
+  window.addEventListener('resize', () => {
+    if (lastPickSlot < 0) return;
+    applyAssist();
+  });
+
+  function bgPositionFor(correctIndex) {
+    const col = correctIndex % GRID;
+    const row = Math.floor(correctIndex / GRID);
+    const step = 100 / (GRID - 1);
+    return `${col * step}% ${row * step}%`;
+  }
+
+  function render() {
+    grid.innerHTML = '';
+    tiles.forEach((correctIndex, slot) => {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      t.dataset.slot = slot;
+      t.style.backgroundPosition = bgPositionFor(correctIndex);
+      attachDrag(t);
+      grid.appendChild(t);
+    });
+    updateMergeState();
+  }
+
+  function shuffle() {
+    do {
+      tiles = Array.from({ length: TOTAL }, (_, i) => i);
+      for (let i = tiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+      }
+    } while (isSolved());
+  }
+
+  function isSolved() { return tiles.every((c, i) => c === i); }
+
+  function getTileEl(slot) { return grid.querySelector(`.tile[data-slot="${slot}"]`); }
+
+  function updateMergeState() {
+    const newKeys = new Set();
+    const newPairs = [];
+    for (let slot = 0; slot < TOTAL; slot++) {
+      const el = getTileEl(slot);
+      if (!el) continue;
+      el.classList.remove('merged-right', 'merged-down');
+      const c = tiles[slot];
+      const row = Math.floor(slot / GRID);
+      const col = slot % GRID;
+      if (col < GRID - 1 && (c % GRID) < GRID - 1 && tiles[slot + 1] === c + 1) {
+        el.classList.add('merged-right');
+        const key = `H${c}`;
+        newKeys.add(key);
+        if (!prevMergeKeys.has(key)) newPairs.push({ a: slot, b: slot + 1, dir: 'R' });
+      }
+      if (row < GRID - 1 && c < TOTAL - GRID && tiles[slot + GRID] === c + GRID) {
+        el.classList.add('merged-down');
+        const key = `V${c}`;
+        newKeys.add(key);
+        if (!prevMergeKeys.has(key)) newPairs.push({ a: slot, b: slot + GRID, dir: 'D' });
+      }
+    }
+    prevMergeKeys = newKeys;
+    if (newPairs.length && !suppressMergeFx) onMerge(newPairs);
+  }
+
+  function getGroup(slot) {
+    const visited = new Set([slot]);
+    const queue = [slot];
+    while (queue.length) {
+      const s = queue.shift();
+      const el = getTileEl(s);
+      if (!el) continue;
+      const row = Math.floor(s / GRID);
+      const col = s % GRID;
+      if (el.classList.contains('merged-right') && col < GRID - 1 && !visited.has(s + 1)) {
+        visited.add(s + 1); queue.push(s + 1);
+      }
+      if (col > 0) {
+        const left = getTileEl(s - 1);
+        if (left && left.classList.contains('merged-right') && !visited.has(s - 1)) {
+          visited.add(s - 1); queue.push(s - 1);
+        }
+      }
+      if (el.classList.contains('merged-down') && row < GRID - 1 && !visited.has(s + GRID)) {
+        visited.add(s + GRID); queue.push(s + GRID);
+      }
+      if (row > 0) {
+        const up = getTileEl(s - GRID);
+        if (up && up.classList.contains('merged-down') && !visited.has(s - GRID)) {
+          visited.add(s - GRID); queue.push(s - GRID);
+        }
+      }
+    }
+    return [...visited];
+  }
+
+  function onMerge(pairs) {
+    audio.playMerge();
+    pairs.forEach(({ a, b, dir }) => {
+      const ea = getTileEl(a), eb = getTileEl(b);
+      if (!ea || !eb) return;
+      [ea, eb].forEach(el => {
+        el.classList.remove('merge-flash');
+        void el.offsetWidth;
+        el.classList.add('merge-flash');
+        setTimeout(() => el.classList.remove('merge-flash'), 650);
+      });
+      sparkleSeam(ea, eb, dir);
+    });
+  }
+
+  function sparkleSeam(elA, elB, dir) {
+    const rA = elA.getBoundingClientRect();
+    const rB = elB.getBoundingClientRect();
+    const cx = dir === 'R' ? (rA.right + rB.left) / 2 : (rA.left + rA.right) / 2;
+    const cy = dir === 'R' ? (rA.top + rA.bottom) / 2 : (rA.bottom + rB.top) / 2;
+    for (let i = 0; i < 12; i++) {
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      const angle = (i / 12) * Math.PI * 2 + Math.random() * 0.4;
+      const dist = 28 + Math.random() * 36;
+      s.style.left = (cx - 5) + 'px';
+      s.style.top = (cy - 5) + 'px';
+      s.style.width = '8px';
+      s.style.height = '8px';
+      s.style.setProperty('--end', `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`);
+      s.style.background = i % 2 ? '#FFC73C' : '#fff';
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 950);
+    }
+  }
+
+  function attachDrag(el) {
+    let pid = null;
+    let startX = 0, startY = 0;
+    let dragging = false;
+    let groupSlots = null;
+    let groupEls = null;
+    let anchorSlot = null;
+
+    el.addEventListener('pointerdown', (e) => {
+      audio.unlock();
+      if (solved || animating || pid !== null) return;
+      pid = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      dragging = false;
+      anchorSlot = +el.dataset.slot;
+      try { el.setPointerCapture(pid); } catch (_) {}
+      el.classList.add('pressing');
+      audio.playPickup();
+      // Clear the assist visuals during drag so they don't override the
+      // dragging/drop-target styles. applyAssist re-runs after the move.
+      hideHint();
+      clearAssistClasses();
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== pid) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!dragging) {
+        if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+        dragging = true;
+        el.classList.remove('pressing');
+        groupSlots = getGroup(anchorSlot);
+        groupEls = groupSlots.map(s => ({ slot: s, el: getTileEl(s) }));
+        groupEls.forEach(g => g.el.classList.add('dragging'));
+      }
+      const k = 0.06;
+      const tileW = el.offsetWidth;
+      const anchorCol = anchorSlot % GRID;
+      const anchorRow = (anchorSlot - anchorCol) / GRID;
+      groupEls.forEach(g => {
+        const relCol = (g.slot % GRID) - anchorCol;
+        const relRow = Math.floor(g.slot / GRID) - anchorRow;
+        const sx = k * relCol * tileW;
+        const sy = k * relRow * tileW;
+        g.el.style.transform = `translate(${dx + sx}px, ${dy + sy}px) scale(${1 + k})`;
+      });
+      groupEls.forEach(g => { g.el.style.pointerEvents = 'none'; });
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+      groupEls.forEach(g => { g.el.style.pointerEvents = ''; });
+      grid.querySelectorAll('.tile.drop-target').forEach(t => {
+        if (t !== over) t.classList.remove('drop-target');
+      });
+      if (over && over.classList && over.classList.contains('tile')) {
+        const ts = +over.dataset.slot;
+        if (!groupSlots.includes(ts)) over.classList.add('drop-target');
+      }
+    });
+
+    const finish = (e) => {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      if (!dragging) {
+        el.classList.remove('pressing');
+        return;
+      }
+      grid.querySelectorAll('.tile.drop-target').forEach(t => t.classList.remove('drop-target'));
+      groupEls.forEach(g => { g.el.style.pointerEvents = 'none'; });
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+      groupEls.forEach(g => { g.el.style.pointerEvents = ''; });
+
+      let targetAnchorSlot = null;
+      if (over && over.classList && over.classList.contains('tile')) {
+        const ts = +over.dataset.slot;
+        if (!groupSlots.includes(ts)) targetAnchorSlot = ts;
+      }
+
+      if (targetAnchorSlot === null) {
+        snapGroupBack(groupEls);
+        groupSlots = null; groupEls = null;
+        return;
+      }
+      const dRow = Math.floor(targetAnchorSlot / GRID) - Math.floor(anchorSlot / GRID);
+      const dCol = (targetAnchorSlot % GRID) - (anchorSlot % GRID);
+      let valid = true;
+      const newSlots = groupEls.map(g => {
+        const r = Math.floor(g.slot / GRID) + dRow;
+        const c = (g.slot % GRID) + dCol;
+        if (r < 0 || r >= GRID || c < 0 || c >= GRID) { valid = false; return -1; }
+        return r * GRID + c;
+      });
+      if (!valid) {
+        snapGroupBack(groupEls);
+        groupSlots = null; groupEls = null;
+        return;
+      }
+      audio.playDrop();
+      performMove(groupEls, newSlots, e.clientX - startX, e.clientY - startY);
+      groupSlots = null; groupEls = null;
+    };
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', finish);
+    el.addEventListener('lostpointercapture', finish);
+  }
+
+  function snapGroupBack(groupEls) {
+    groupEls.forEach(g => {
+      g.el.classList.remove('dragging');
+      g.el.style.transition = 'transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+      g.el.style.transform = 'translate(0, 0) scale(1)';
+    });
+    setTimeout(() => {
+      groupEls.forEach(g => {
+        g.el.style.transition = '';
+        g.el.style.transform = '';
+      });
+    }, 240);
+  }
+
+  function performMove(groupEls, newSlots, dragDx, dragDy) {
+    if (animating) return;
+    animating = true;
+    pushHistory();
+
+    const oldSlots = groupEls.map(g => g.slot);
+    const oldSet = new Set(oldSlots);
+    const newSet = new Set(newSlots);
+    const displaced = newSlots.filter(s => !oldSet.has(s)).sort((a, b) => a - b);
+    const vacated  = oldSlots.filter(s => !newSet.has(s)).sort((a, b) => a - b);
+
+    const gridRect = grid.getBoundingClientRect();
+    const rects = {};
+    for (let s = 0; s < TOTAL; s++) {
+      const el2 = getTileEl(s);
+      rects[s] = {
+        left: gridRect.left + el2.offsetLeft,
+        top:  gridRect.top  + el2.offsetTop,
+      };
+    }
+
+    groupEls.forEach((g, i) => {
+      const tx = rects[newSlots[i]].left - rects[g.slot].left;
+      const ty = rects[newSlots[i]].top  - rects[g.slot].top;
+      g.el.style.transition = 'transform 240ms cubic-bezier(0.4, 0, 0.2, 1)';
+      g.el.style.transform = `translate(${tx}px, ${ty}px) scale(1)`;
+      g.el.style.zIndex = '4';
+    });
+    displaced.forEach((fromS, i) => {
+      const toS = vacated[i];
+      const el2 = getTileEl(fromS);
+      const tx = rects[toS].left - rects[fromS].left;
+      const ty = rects[toS].top  - rects[fromS].top;
+      el2.style.transition = 'transform 240ms cubic-bezier(0.4, 0, 0.2, 1)';
+      el2.style.transform = `translate(${tx}px, ${ty}px)`;
+    });
+
+    setTimeout(() => {
+      const groupArt = oldSlots.map(s => tiles[s]);
+      const displacedArt = displaced.map(s => tiles[s]);
+      const next = [...tiles];
+      groupEls.forEach((g, i) => { next[newSlots[i]] = groupArt[i]; });
+      displaced.forEach((_, i) => { next[vacated[i]] = displacedArt[i]; });
+      tiles = next;
+
+      const touched = new Set([...oldSlots, ...newSlots, ...displaced, ...vacated]);
+      touched.forEach(s => {
+        const el2 = getTileEl(s);
+        el2.classList.remove('dragging');
+        el2.style.transition = 'none';
+        el2.style.transform = '';
+        el2.style.zIndex = '';
+        el2.style.backgroundPosition = bgPositionFor(tiles[s]);
+      });
+      void grid.offsetWidth;
+      touched.forEach(s => { getTileEl(s).style.transition = ''; });
+
+      updateMergeState();
+      // Near-solve hint: when exactly 1 tile is out of place, flash that
+      // tile + its correct slot green so the player sees the finish line.
+      const wrongCount = tiles.reduce((acc, c, i) => acc + (c !== i ? 1 : 0), 0);
+      if (wrongCount === 1) {
+        const wrongSlot = tiles.findIndex((c, i) => c !== i);
+        const a = getTileEl(wrongSlot);
+        const b = getTileEl(tiles[wrongSlot]);
+        [a, b].forEach(t => {
+          if (!t) return;
+          t.classList.remove('near-solve-pulse');
+          void t.offsetWidth;
+          t.classList.add('near-solve-pulse');
+          setTimeout(() => t.classList.remove('near-solve-pulse'), 900);
+        });
+      }
+      // Decrement assist counter on every completed move; re-apply hint
+      // on the next-best move until the budget runs out.
+      assistMovesLeft = Math.max(0, assistMovesLeft - 1);
+      applyAssist();
+      animating = false;
+      if (isSolved()) handleWin();
+    }, 240);
+  }
+
+  function pushHistory() {
+    history.push([...tiles]);
+    if (history.length > 20) history.shift();
+  }
+
+  function handleWin() {
+    solved = true;
+    grid.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
+    // Full-viewport white flash for the "click!" feeling of completion.
+    const flash = document.getElementById('winFlash');
+    if (flash) {
+      flash.classList.remove('firing');
+      void flash.offsetWidth;
+      flash.classList.add('firing');
+    }
+    // Scene-top zoom — adds drama on granny's rescue.
+    const sceneTopEl = document.getElementById('sceneTop');
+    if (sceneTopEl) {
+      sceneTopEl.classList.remove('celebrate');
+      void sceneTopEl.offsetWidth;
+      sceneTopEl.classList.add('celebrate');
+      setTimeout(() => sceneTopEl.classList.remove('celebrate'), 520);
+    }
+    audio.playChordSwell();
+    audio.playWin();
+    grid.classList.add('won');
+    document.querySelector('.scene-bottom').classList.add('solved');
+    burstSparkles();
+    startConfetti(48);
+    spawnOverlayStars(28);
+
+    // Tell the top scene to start the drain
+    document.dispatchEvent(new CustomEvent('puzzle:won'));
+
+    // Wait for drain:done before revealing the overlay; safety timeout at 2.5s
+    let shown = false;
+    const showOverlay = () => {
+      if (shown) return;
+      shown = true;
+      winOverlay.classList.add('show');
+      // Outro voiceover starts the moment the end card lands.
+      playVO(voOutro);
+      // CTA reveal SFX — timed to when the button slides in (~950ms after overlay).
+      setTimeout(() => audio.playCtaReveal(), 950);
+    };
+    document.addEventListener('drain:done', showOverlay, { once: true });
+    setTimeout(showOverlay, 1250);
+  }
+
+  function burstSparkles() {
+    const rect = grid.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (let i = 0; i < 22; i++) {
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      const angle = (i / 22) * Math.PI * 2 + Math.random() * 0.3;
+      const dist = 130 + Math.random() * 110;
+      s.style.left = (cx - 5) + 'px';
+      s.style.top = (cy - 5) + 'px';
+      s.style.setProperty('--end', `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`);
+      s.style.background = i % 3 === 0 ? '#FFC73C' : (i % 3 === 1 ? '#F8C8DF' : '#fff');
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 950);
+    }
+  }
+
+  function startConfetti(n) {
+    const colors = ['#FFC73C', '#F8C8DF', '#ff8e42', '#6dd053', '#a18cf0', '#ffffff'];
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * 100 + 'vw';
+        c.style.background = colors[Math.floor(Math.random() * colors.length)];
+        const dur = 1700 + Math.random() * 1400;
+        const drift = (Math.random() * 220 - 110) + 'px';
+        const rot = (Math.random() * 1080 - 540) + 'deg';
+        c.style.transition = `transform ${dur}ms linear, opacity ${dur}ms ease-in`;
+        document.body.appendChild(c);
+        requestAnimationFrame(() => {
+          c.style.transform = `translate(${drift}, 110vh) rotate(${rot})`;
+          c.style.opacity = '0.4';
+        });
+        setTimeout(() => c.remove(), dur + 100);
+      }, i * 35);
+    }
+  }
+
+  const overlayStars = document.getElementById('overlayStars');
+  function spawnOverlayStars(n) {
+    overlayStars.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('div');
+      s.className = 'bg-star';
+      const x = Math.random() * 100;
+      const y = Math.random() * 100;
+      const size = 8 + Math.random() * 18;
+      const rot = Math.random() * 360;
+      const base = 0.35 + Math.random() * 0.45;
+      s.style.left = x + '%';
+      s.style.top = y + '%';
+      s.style.width = size + 'px';
+      s.style.height = size + 'px';
+      s.style.setProperty('--star-tf', `rotate(${rot}deg)`);
+      s.style.setProperty('--star-base', base);
+      s.style.transform = `rotate(${rot}deg) scale(0.9)`;
+      s.style.opacity = base;
+      s.style.animationDelay = (Math.random() * 1.4) + 's';
+      overlayStars.appendChild(s);
+    }
+  }
+
+  const STORE_URL = 'https://play.google.com/store/apps/details?id=in.playsimple.picmerge&hl=en_IN';
+  ctaBtn.addEventListener('click', () => {
+    audio.playCtaTap();
+    // In an MRAID-enabled ad container, use mraid.open() — otherwise fall back
+    // to window.open so the link works in plain-browser testing too.
+    if (typeof mraid !== 'undefined' && typeof mraid.open === 'function') {
+      mraid.open(STORE_URL);
+    } else {
+      window.open(STORE_URL, '_blank', 'noopener,noreferrer');
+    }
+  });
+
+  function reset() {
+    solved = false;
+    animating = false;
+    history = [];
+    prevMergeKeys = new Set();
+    grid.classList.remove('won');
+    suppressMergeFx = true;
+    shuffle();
+    render();
+    suppressMergeFx = false;
+    assistMovesLeft = 3;
+    applyAssist();
+  }
+
+  reset();
+})();
+
+// Kick off the top scene last so it can measure the layout.
+window.addEventListener('load', () => topScene.init());
+
+// ============================================================
+// VOICEOVER CLIPS — HTMLAudio, preloaded once.
+// ============================================================
+const voIntro = new Audio('assets/vo-intro.mp3');
+const voOutro = new Audio('assets/vo-outro.mp3');
+[voIntro, voOutro].forEach(a => { a.preload = 'auto'; a.volume = 0.92; });
+function playVO(clip) {
+  if (audio.isMuted && audio.isMuted()) return;
+  try { clip.currentTime = 0; const p = clip.play(); if (p) p.catch(() => {}); } catch (_) {}
+}
+
+// ============================================================
+// INTRO AUDIO — rising sweep + VO on the first user gesture.
+// (Banner stays visible the whole game via CSS only; assist hand is
+//  managed by the puzzle IIFE so it can target the right tile.)
+// ============================================================
+document.addEventListener('pointerdown', () => {
+  audio.unlock();
+  audio.playIntro();
+  playVO(voIntro);
+}, { once: true });
+
+// ============================================================
+// DEBUG HUD — press D to toggle, or load with ?debug=1
+// ============================================================
+(() => {
+  const targets = [
+    { id: 'granny', sel: '.granny',     color: '#ff4477', props: ['right', 'bottom', 'width', 'height'] },
+    { id: 'hazard', sel: '.hazard',     color: '#ffaa22', props: ['left',  'top',    'width', 'height'] },
+    { id: 'chasm',  sel: '.chasm-zone', color: '#44aaff', props: ['left',  'right',  'top',   'bottom'] },
+  ];
+  let enabled = false;
+  let selectedId = 'granny';
+  let panel = null;
+
+  const elFor = (t) => document.querySelector(t.sel);
+
+  // Read the current value of a CSS property, preferring the inline override
+  // (so live nudges show up immediately) and falling back to computed % of parent.
+  function getStyle(el, prop) {
+    if (el.style[prop]) return el.style[prop];
+    const cs = getComputedStyle(el);
+    const parent = el.offsetParent || el.parentElement;
+    if (!parent) return cs[prop];
+    const px = parseFloat(cs[prop]);
+    if (isNaN(px)) return cs[prop];
+    const horiz = prop === 'left' || prop === 'right' || prop === 'width';
+    const base  = horiz ? parent.clientWidth : parent.clientHeight;
+    return base ? ((px / base) * 100).toFixed(1) + '%' : cs[prop];
+  }
+  function getPct(el, prop) {
+    const m = getStyle(el, prop).match(/^(-?\d+(?:\.\d+)?)\s*%$/);
+    return m ? parseFloat(m[1]) : 0;
+  }
+  function setPct(el, prop, val) { el.style[prop] = val.toFixed(1) + '%'; }
+
+  function nudge(prop, delta) {
+    const t = targets.find(x => x.id === selectedId);
+    if (!t || !t.props.includes(prop)) return;
+    const el = elFor(t);
+    setPct(el, prop, getPct(el, prop) + delta);
+    renderPanel();
+  }
+
+  function renderPanel() {
+    if (!panel) return;
+    panel.querySelector('.debug-items').innerHTML = targets.map(t => {
+      const el = elFor(t);
+      const lines = t.props.map(p => `${p}: ${getStyle(el, p)}`).join('  /  ');
+      return `<div class="debug-item ${t.id === selectedId ? 'sel' : ''}" data-id="${t.id}" style="border-color:${t.color}">
+        <div><strong>${t.id.toUpperCase()}</strong></div>
+        <div style="opacity:0.85">${lines}</div>
+      </div>`;
+    }).join('');
+    targets.forEach(t => {
+      const el = elFor(t);
+      if (el) el.classList.toggle('debug-selected', t.id === selectedId);
+    });
+  }
+
+  function copyCss() {
+    const css = targets.map(t => {
+      const el = elFor(t);
+      const decls = t.props.map(p => `  ${p}: ${getStyle(el, p)};`).join('\n');
+      return `${t.sel} {\n${decls}\n}`;
+    }).join('\n\n');
+    navigator.clipboard.writeText(css).then(() => {
+      const btn = panel.querySelector('.debug-copy');
+      const orig = btn.textContent;
+      btn.textContent = '✓ copied';
+      setTimeout(() => (btn.textContent = orig), 1200);
+    });
+  }
+
+  function ensurePanel() {
+    if (panel) return;
+    panel = document.createElement('div');
+    panel.className = 'debug-panel';
+    panel.innerHTML = `
+      <div class="debug-title">🔧 DEBUG (D to toggle)</div>
+      <div class="debug-items"></div>
+      <button class="debug-copy">Copy CSS</button>
+      <div class="debug-hint">
+        Click an element to select.<br>
+        Arrows: nudge ±1% (Shift = ±0.5%).<br>
+        +/- : resize ±1%.
+      </div>
+    `;
+    document.body.appendChild(panel);
+    panel.addEventListener('click', e => {
+      const item = e.target.closest('.debug-item');
+      if (item) { selectedId = item.dataset.id; renderPanel(); return; }
+      if (e.target.classList.contains('debug-copy')) copyCss();
+    });
+  }
+
+  function toggle() {
+    enabled = !enabled;
+    document.body.classList.toggle('debug-on', enabled);
+    if (enabled) { ensurePanel(); panel.style.display = ''; renderPanel(); }
+    else if (panel) {
+      panel.style.display = 'none';
+      targets.forEach(t => { const el = elFor(t); if (el) el.classList.remove('debug-selected'); });
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === 'd' || e.key === 'D') { toggle(); e.preventDefault(); return; }
+    if (!enabled) return;
+    const step = e.shiftKey ? 0.5 : 1;
+    const t = targets.find(x => x.id === selectedId);
+    if (!t) return;
+    const hasRight  = t.props.includes('right');
+    const hasBottom = t.props.includes('bottom');
+    switch (e.key) {
+      case 'ArrowUp':    nudge(hasBottom ? 'bottom' : 'top',  hasBottom ?  step : -step); e.preventDefault(); break;
+      case 'ArrowDown':  nudge(hasBottom ? 'bottom' : 'top',  hasBottom ? -step :  step); e.preventDefault(); break;
+      case 'ArrowLeft':  nudge(hasRight  ? 'right'  : 'left', hasRight  ?  step : -step); e.preventDefault(); break;
+      case 'ArrowRight': nudge(hasRight  ? 'right'  : 'left', hasRight  ? -step :  step); e.preventDefault(); break;
+      case '+': case '=':
+        if (t.props.includes('width'))  nudge('width',  step);
+        if (t.props.includes('height')) nudge('height', step);
+        e.preventDefault(); break;
+      case '-': case '_':
+        if (t.props.includes('width'))  nudge('width', -step);
+        if (t.props.includes('height')) nudge('height',-step);
+        e.preventDefault(); break;
+    }
+  });
+
+  if (location.search.includes('debug=1')) {
+    window.addEventListener('load', () => setTimeout(toggle, 200));
+  }
+})();
+</script>
+</body>
+</html>
