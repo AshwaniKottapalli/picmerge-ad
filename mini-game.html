@@ -2144,14 +2144,28 @@ function playVO(clip) {
 }
 
 // ============================================================
-// INTRO AUDIO — rising sweep + VO on the first user gesture.
-// (Banner stays visible the whole game via CSS only; assist hand is
-//  managed by the puzzle IIFE so it can target the right tile.)
+// FIRST-GESTURE HANDLER
+//   • unlocks audio (Web Audio requires a user gesture)
+//   • plays intro chime + voiceover
+//   • requests fullscreen (silently no-ops on iOS / when blocked)
 // ============================================================
+function requestFullscreenOnce() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen
+           || el.webkitRequestFullscreen
+           || el.mozRequestFullScreen
+           || el.msRequestFullscreen;
+  if (!req) return;  // not supported (iOS Safari before 16.4 for non-video)
+  try {
+    const ret = req.call(el);
+    if (ret && typeof ret.catch === 'function') ret.catch(() => {});
+  } catch (_) { /* permission denied or already fullscreen */ }
+}
 document.addEventListener('pointerdown', () => {
   audio.unlock();
   audio.playIntro();
   playVO(voIntro);
+  requestFullscreenOnce();
 }, { once: true });
 
 // ============================================================
