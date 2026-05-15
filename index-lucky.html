@@ -36,6 +36,73 @@
     color: #fff;
   }
 
+  /* ═════════════════════════ LOADING SCREEN ═════════════════════════ */
+  .loader {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: linear-gradient(180deg, #fff4c9 0%, #ffd791 30%, #f8b377 65%, #a6d2ec 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 400ms ease;
+    opacity: 1;
+  }
+  .loader.hidden { opacity: 0; pointer-events: none; }
+  .loader-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    width: min(280px, 80%);
+  }
+  .loader-title {
+    font-size: clamp(38px, 11vw, 48px);
+    font-weight: 900;
+    color: #fff4c5;
+    text-shadow:
+      -3px 0 0 var(--red-outline), 3px 0 0 var(--red-outline),
+      0 -3px 0 var(--red-outline), 0  3px 0 var(--red-outline),
+      -3px -3px 0 var(--red-outline), 3px -3px 0 var(--red-outline),
+      -3px  3px 0 var(--red-outline), 3px  3px 0 var(--red-outline),
+      0 6px 0 rgba(80, 0, 0, 0.4);
+    letter-spacing: 1px;
+    transform: rotate(-2deg);
+    line-height: 1;
+  }
+  .loader-spinner {
+    width: 42px; height: 42px;
+    border: 4px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #c92c2c;
+    border-radius: 50%;
+    animation: loaderSpin 0.9s linear infinite;
+  }
+  @keyframes loaderSpin { to { transform: rotate(360deg); } }
+  .loader-progress {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(201, 44, 44, 0.4);
+  }
+  .loader-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ffc940, #c8861b);
+    border-radius: 999px;
+    transition: width 220ms ease;
+    box-shadow: 0 0 10px rgba(255, 199, 60, 0.6);
+  }
+  .loader-text {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+  }
+
   /* Screen system — sibling fullscreen containers, fade between */
   .screen {
     position: fixed;
@@ -70,9 +137,11 @@
     border-radius: 999px;
     filter: blur(0.5px);
   }
-  .c1 { top: 28%; left: -40px; width: 140px; height: 30px; opacity: 0.85; }
-  .c2 { top: 22%; right: -30px; width: 120px; height: 26px; opacity: 0.7; }
-  .c3 { top: 40%; left: 30%; width: 90px; height: 22px; opacity: 0.6; }
+  .c1 { top: 28%; left: -40px; width: 140px; height: 30px; opacity: 0.85; animation: cloudDrift 38s linear infinite; }
+  .c2 { top: 22%; right: -30px; width: 120px; height: 26px; opacity: 0.7;  animation: cloudDriftR 46s linear infinite; }
+  .c3 { top: 40%; left: 30%;    width: 90px;  height: 22px; opacity: 0.6;  animation: cloudDrift 52s linear infinite -10s; }
+  @keyframes cloudDrift  { 0% { transform: translateX(-30vw); } 100% { transform: translateX(110vw); } }
+  @keyframes cloudDriftR { 0% { transform: translateX(0); }    100% { transform: translateX(-130vw); } }
 
   .wheel-inner {
     position: relative;
@@ -205,15 +274,16 @@
     transition: transform 4200ms cubic-bezier(0.18, 0.62, 0.18, 1);
   }
   .wedge-label {
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 900;
     fill: #fff;
     text-anchor: middle;
     paint-order: stroke;
     stroke: rgba(0, 0, 0, 0.35);
-    stroke-width: 2.5;
+    stroke-width: 1.5;
+    letter-spacing: 0.3px;
   }
-  .wedge-icon { font-size: 26px; text-anchor: middle; }
+  .wedge-icon { font-size: 22px; text-anchor: middle; }
   .hub-glow  { fill: url(#hubGrad); }
   .hub-text  { fill: #fff; font-weight: 900; text-anchor: middle; paint-order: stroke;
                stroke: rgba(120, 30, 0, 0.6); stroke-width: 2.5; }
@@ -228,7 +298,67 @@
     50%      { transform: scale(1.06); filter: drop-shadow(0 0 18px rgba(255,220,80,1)); }
   }
 
-  .deco { position: absolute; pointer-events: none; z-index: 2; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); }
+  /* Charge gauge: a gold arc that fills clockwise around the hub while the
+     user holds the spin button. Driven by JS-set stroke-dashoffset on
+     #chargeArc. The arc lives in its own SVG above the hub. */
+  .charge-ring {
+    position: absolute;
+    inset: 6px;
+    width: calc(100% - 12px);
+    height: calc(100% - 12px);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 180ms ease;
+    z-index: 6;
+  }
+  .charge-ring.active { opacity: 1; }
+  #chargeArc {
+    fill: none;
+    stroke: url(#chargeGrad);
+    stroke-width: 8;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 8px rgba(255, 220, 80, 0.9));
+    transform: rotate(-90deg);
+    transform-origin: 150px 150px;
+  }
+
+  /* While charging, the wheel wobbles in place for anticipation. */
+  .wheel-svg.charging { animation: chargeWobble 220ms ease-in-out infinite; }
+  @keyframes chargeWobble {
+    0%, 100% { transform: rotate(var(--rest-rot, 0deg)); }
+    25%      { transform: rotate(calc(var(--rest-rot, 0deg) - 2deg)); }
+    75%      { transform: rotate(calc(var(--rest-rot, 0deg) + 2deg)); }
+  }
+
+  /* Landing screen-shake: brief jitter when the wheel finishes its spin. */
+  .wheel-screen.shake { animation: screenShake 260ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+  @keyframes screenShake {
+    0%, 100% { transform: translate(0, 0); }
+    15%      { transform: translate(-4px, 2px); }
+    30%      { transform: translate(3px, -3px); }
+    45%      { transform: translate(-3px, 1px); }
+    60%      { transform: translate(2px, 2px); }
+    75%      { transform: translate(-2px, -1px); }
+    90%      { transform: translate(1px, 1px); }
+  }
+  /* Brief hub flash on landing — sharper drop-shadow + scale punch. */
+  .hub-pulse.landed { animation: hubLand 600ms ease-out; }
+  @keyframes hubLand {
+    0%   { transform: scale(1);    filter: drop-shadow(0 0 10px rgba(255,220,80,0.9)); }
+    25%  { transform: scale(1.18); filter: drop-shadow(0 0 30px rgba(255,220,80,1)); }
+    100% { transform: scale(1);    filter: drop-shadow(0 0 6px rgba(255,220,80,0.6)); }
+  }
+  /* Brighten the rim lights briefly on landing. */
+  .wheel-lights.landed .light {
+    animation: lightFlash 500ms ease-out;
+  }
+  @keyframes lightFlash {
+    0%   { transform: translate(-50%, -50%) scale(1);   box-shadow: 0 0 6px rgba(255,220,80,0.95); }
+    50%  { transform: translate(-50%, -50%) scale(1.6); box-shadow: 0 0 18px rgba(255,240,140,1); }
+    100% { transform: translate(-50%, -50%) scale(1);   box-shadow: 0 0 6px rgba(255,220,80,0.95); }
+  }
+
+  .deco { position: absolute; pointer-events: none; z-index: 2; opacity: 0.7; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); }
   .deco-plane { top: 88px; right: 18px; font-size: 36px; animation: planeFloat 4s ease-in-out infinite; }
   @keyframes planeFloat { 0%,100% { transform: rotate(18deg) translateY(0); } 50% { transform: rotate(22deg) translateY(-10px); } }
   .deco-case { bottom: 70px; left: 12px; font-size: 48px; animation: caseFloat 3.4s ease-in-out infinite; }
@@ -267,9 +397,26 @@
     opacity: 0;
     z-index: 30;
     transition: opacity 350ms ease;
+    overflow: hidden;
   }
   .reveal-card.show { opacity: 1; }
   .reveal-card { background: rgba(40, 20, 50, 0.55); }
+
+  /* Radial gold flash behind the city name — fires once on reveal. */
+  .reveal-flash {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(255,244,197,0.85) 0%, rgba(255,201,64,0.4) 28%, transparent 60%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .reveal-card.show .reveal-flash { animation: revealFlash 540ms ease-out; }
+  @keyframes revealFlash {
+    0%   { opacity: 0; }
+    35%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
   .reveal-icon {
     font-size: clamp(64px, 18vw, 88px);
     margin-bottom: 10px;
@@ -277,10 +424,13 @@
     transform: translateY(-30px);
     transition: opacity 400ms ease, transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
     text-align: center;
+    position: relative;
+    z-index: 2;
   }
   .reveal-card.show .reveal-icon { opacity: 1; transform: translateY(0); }
+
   .reveal-city {
-    font-size: clamp(48px, 15vw, 68px);
+    font-size: clamp(54px, 17vw, 76px);
     font-weight: 900;
     color: #fff7c5;
     text-align: center;
@@ -289,10 +439,18 @@
       0 -3px 0 var(--red-outline), 0  3px 0 var(--red-outline),
       0 8px 0 rgba(80,0,0,0.45);
     letter-spacing: 2px;
-    transform: scale(0.5);
-    transition: transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform: scale(0.5) rotate(-8deg);
+    opacity: 0;
+    position: relative;
+    z-index: 2;
   }
-  .reveal-card.show .reveal-city { transform: scale(1); }
+  .reveal-card.show .reveal-city { animation: cityExplode 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 80ms forwards; }
+  @keyframes cityExplode {
+    0%   { transform: scale(0.5) rotate(-8deg); opacity: 0; }
+    55%  { transform: scale(1.25) rotate(4deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg);    opacity: 1; }
+  }
+
   .reveal-tag {
     font-size: clamp(15px, 4.2vw, 18px);
     font-weight: 700;
@@ -301,7 +459,42 @@
     margin-top: 10px;
     letter-spacing: 0.5px;
     text-align: center;
+    position: relative;
+    z-index: 2;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 320ms ease 450ms, transform 320ms ease 450ms;
   }
+  .reveal-card.show .reveal-tag { opacity: 1; transform: translateY(0); }
+
+  /* Travel-themed postage stamp in the corner of the reveal card. */
+  .reveal-stamp {
+    position: absolute;
+    top: 16%;
+    right: 12%;
+    width: clamp(64px, 18vw, 90px);
+    aspect-ratio: 1.1 / 1;
+    background: #fff5e0;
+    border: 3px dashed #c92c2c;
+    transform: rotate(8deg) scale(0);
+    color: #c92c2c;
+    font-weight: 900;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-align: center;
+    line-height: 1.1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.18), 0 8px 18px rgba(0,0,0,0.3);
+    z-index: 2;
+  }
+  .reveal-card.show .reveal-stamp { animation: stampSlam 360ms cubic-bezier(0.34, 1.56, 0.64, 1) 240ms forwards; }
+  @keyframes stampSlam {
+    0%   { transform: rotate(40deg) scale(0); opacity: 0; }
+    70%  { transform: rotate(4deg)  scale(1.15); opacity: 1; }
+    100% { transform: rotate(8deg)  scale(1);    opacity: 1; }
+  }
+  .reveal-stamp-line1 { font-size: clamp(13px, 3.5vw, 16px); }
+  .reveal-stamp-line2 { font-size: 9px; opacity: 0.7; margin-top: 2px; letter-spacing: 0.5px; }
 
   /* ═════════════════════════ PUZZLE SCREEN ═════════════════════════ */
   .puzzle-screen {
@@ -420,6 +613,24 @@
     will-change: transform, background-position;
     position: relative;
   }
+  /* Puzzle-entry: tiles fly in from off-screen corners + bottom, staggered. */
+  .grid.entering .tile {
+    animation: tileFlyIn 540ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .grid.entering .tile:nth-child(1) { animation-delay:   0ms; --fromX:-220px; --fromY:-220px; }
+  .grid.entering .tile:nth-child(2) { animation-delay:  60ms; --fromX:   0px; --fromY:-260px; }
+  .grid.entering .tile:nth-child(3) { animation-delay: 120ms; --fromX: 220px; --fromY:-220px; }
+  .grid.entering .tile:nth-child(4) { animation-delay: 180ms; --fromX:-260px; --fromY:   0px; }
+  .grid.entering .tile:nth-child(5) { animation-delay: 240ms; --fromX:   0px; --fromY: 260px; }
+  .grid.entering .tile:nth-child(6) { animation-delay: 300ms; --fromX: 260px; --fromY:   0px; }
+  .grid.entering .tile:nth-child(7) { animation-delay: 360ms; --fromX:-220px; --fromY: 220px; }
+  .grid.entering .tile:nth-child(8) { animation-delay: 420ms; --fromX:   0px; --fromY: 280px; }
+  .grid.entering .tile:nth-child(9) { animation-delay: 480ms; --fromX: 220px; --fromY: 220px; }
+  @keyframes tileFlyIn {
+    0%   { transform: translate(var(--fromX, 0), var(--fromY, 0)) scale(0.4) rotate(-12deg); opacity: 0; }
+    70%  { transform: translate(0, 0) scale(1.08) rotate(2deg); opacity: 1; }
+    100% { transform: translate(0, 0) scale(1) rotate(0deg);    opacity: 1; }
+  }
   .tile.merged-right { box-shadow: inset 0 -1px 0 var(--seam); }
   .tile.merged-down  { box-shadow: inset -1px 0 0 var(--seam); }
   .tile.merged-right.merged-down { box-shadow: none; }
@@ -452,7 +663,78 @@
     0%, 100% { box-shadow: inset -1px -1px 0 var(--seam); }
     50% { box-shadow: inset 0 0 0 3px var(--gold), 0 0 18px rgba(255,199,60,0.8); }
   }
+  /* Near-solve hint: 1 tile away from done — flashes green. */
+  .tile.near-solve-pulse { animation: nearSolvePulse 900ms ease-in-out; }
+  @keyframes nearSolvePulse {
+    0%, 100% { box-shadow: inset -1px -1px 0 var(--seam); filter: brightness(1); }
+    50%      { box-shadow: inset 0 0 0 3px #6dd053, 0 0 18px rgba(109, 208, 83, 0.7); filter: brightness(1.15); }
+  }
+  /* First-moves assist: gold pulse on the tile to pick up. */
+  .tile.assist-pickup {
+    animation: assistPickup 1.2s ease-in-out infinite;
+    z-index: 5;
+  }
+  @keyframes assistPickup {
+    0%, 100% { box-shadow: inset 0 0 0 3px var(--gold), 0 0 14px rgba(255,199,60,0.7);  filter: brightness(1.12); }
+    50%      { box-shadow: inset 0 0 0 4px var(--gold), 0 0 26px rgba(255,199,60,1.0);  filter: brightness(1.30); }
+  }
+  /* First-moves assist: green pulse on the slot to drop into. */
+  .tile.assist-drop {
+    animation: assistDrop 1.2s ease-in-out infinite;
+    z-index: 4;
+  }
+  @keyframes assistDrop {
+    0%, 100% { box-shadow: inset 0 0 0 3px #6dd053; }
+    50%      { box-shadow: inset 0 0 0 4px #6dd053, 0 0 22px rgba(109, 208, 83, 0.85); }
+  }
   .tile.locked { pointer-events: none; }
+
+  /* Tap-hint: animated hand + pulsing ring sitting over the pickup tile.
+     Optionally travels to the drop tile (demo-move) for the first 2 moves. */
+  .tap-hint {
+    position: fixed;
+    width: 60px; height: 60px;
+    pointer-events: none;
+    z-index: 41;
+    opacity: 0;
+    transition: opacity 220ms ease;
+  }
+  .tap-hint.shown { opacity: 1; }
+  .tap-hint .hint-ring {
+    position: absolute;
+    inset: 0;
+    border: 3px solid var(--gold);
+    border-radius: 50%;
+    animation: tapRing 1.4s ease-out infinite;
+  }
+  .tap-hint .hint-hand {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    animation: tapPulse 1.4s ease-in-out infinite;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5));
+  }
+  .tap-hint .hint-hand svg { width: 36px; height: 36px; }
+  @keyframes tapPulse {
+    0%, 100% { transform: scale(1) translateY(0); }
+    35%      { transform: scale(0.86) translateY(3px); }
+    55%      { transform: scale(0.86) translateY(3px); }
+    75%      { transform: scale(1) translateY(0); }
+  }
+  @keyframes tapRing {
+    0%   { transform: scale(0.65); opacity: 0.9; }
+    100% { transform: scale(1.85); opacity: 0; }
+  }
+  .tap-hint.demo-move { animation: handTravel 2.4s ease-in-out infinite; }
+  @keyframes handTravel {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    7%   { transform: translate(0, 0); opacity: 1; }
+    28%  { transform: translate(0, 0); opacity: 1; }
+    62%  { transform: translate(var(--dx, 0), var(--dy, 0)); opacity: 1; }
+    82%  { transform: translate(var(--dx, 0), var(--dy, 0)); opacity: 1; }
+    92%  { transform: translate(var(--dx, 0), var(--dy, 0)); opacity: 0; }
+    100% { transform: translate(0, 0); opacity: 0; }
+  }
   .footer-bar {
     display: flex; justify-content: center; gap: 28px;
     padding: 14px 0 8px;
@@ -561,7 +843,25 @@
       0 0 0 1px rgba(0,0,0,0.05),
       0 0 30px rgba(255, 199, 60, 0.35);
     margin-bottom: 26px;
+    transform: rotate(-3deg);  /* postcard tilt */
   }
+  /* AIR MAIL stamp in the top-right corner of the photo-frame */
+  .photo-stamp {
+    position: absolute;
+    top: 8px;
+    right: -10px;
+    background: #fff5e0;
+    border: 2px dashed #c92c2c;
+    color: #c92c2c;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    transform: rotate(12deg);
+    box-shadow: 0 3px 0 rgba(0,0,0,0.18);
+    line-height: 1;
+  }
+  .photo-stamp::before { content: '✈ '; }
   .coin-reward {
     position: absolute; bottom: -18px; left: 50%;
     transform: translateX(-50%);
@@ -574,6 +874,8 @@
   }
   .coin-reward .coin { width: 26px; height: 26px; }
   .cta-continue {
+    position: relative;
+    overflow: hidden;
     width: 86%; max-width: 320px;
     padding: clamp(14px, 4.5vw, 18px);
     margin-top: 8px;
@@ -590,13 +892,35 @@
     letter-spacing: 0.6px;
   }
   .cta-continue:active { transform: translateY(3px); box-shadow: 0 3px 0 #1d6d18, 0 6px 10px rgba(0,0,0,0.25); }
+  /* Diagonal shine sweep across the CTA every 2.6s. */
+  .cta-continue::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: -60%; width: 60%;
+    background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+    transform: translateX(0);
+    pointer-events: none;
+  }
+  .overlay.show .cta-continue::before {
+    animation: ctaShine 2.6s 1900ms ease-in-out infinite;
+  }
+  @keyframes ctaShine {
+    0%, 25%   { transform: translateX(0);    opacity: 0; }
+    35%       { opacity: 1; }
+    65%       { opacity: 1; }
+    75%, 100% { transform: translateX(360%); opacity: 0; }
+  }
 
   .overlay .ribbon-wrap, .overlay .photo-frame, .overlay .cta-continue { opacity: 0; }
   .overlay .coin-reward { opacity: 0; transform: translateX(-50%) scale(0); }
   .overlay.show .ribbon-wrap { animation: ribbonDrop 600ms 0ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
   .overlay.show .photo-frame { animation: photoZoom 500ms 250ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
   .overlay.show .coin-reward { animation: badgePop 500ms 650ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-  .overlay.show .cta-continue { animation: ctaSlide 450ms 850ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .overlay.show .cta-continue {
+    animation: ctaSlide 480ms 950ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+               ctaPulse 1500ms 1500ms ease-in-out infinite;
+  }
   .overlay.show .bg-star { animation: starTwinkle 1400ms ease-in-out infinite; }
   @keyframes ribbonDrop {
     0%   { transform: translateY(-140px) rotate(-4deg); opacity: 0; }
@@ -604,9 +928,9 @@
     100% { transform: translateY(0) rotate(0);          opacity: 1; }
   }
   @keyframes photoZoom {
-    0%   { transform: scale(0.5);  opacity: 0; }
-    70%  { transform: scale(1.06); opacity: 1; }
-    100% { transform: scale(1);    opacity: 1; }
+    0%   { transform: scale(0.5)  rotate(-3deg);  opacity: 0; }
+    70%  { transform: scale(1.06) rotate(-3deg);  opacity: 1; }
+    100% { transform: scale(1)    rotate(-3deg);  opacity: 1; }
   }
   @keyframes badgePop {
     0%   { transform: translateX(-50%) scale(0);    opacity: 0; }
@@ -614,8 +938,13 @@
     100% { transform: translateX(-50%) scale(1);    opacity: 1; }
   }
   @keyframes ctaSlide {
-    0%   { transform: translateY(60px); opacity: 0; }
-    100% { transform: translateY(0);     opacity: 1; }
+    0%   { transform: translateY(70px) scale(0.85); opacity: 0; }
+    60%  { transform: translateY(-6px) scale(1.08); opacity: 1; }
+    100% { transform: translateY(0)    scale(1);    opacity: 1; }
+  }
+  @keyframes ctaPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.045); }
   }
   @keyframes starTwinkle {
     0%, 100% { opacity: var(--star-base, 0.5); transform: var(--star-tf) scale(0.9); }
@@ -645,6 +974,16 @@
 </style>
 </head>
 <body>
+
+<!-- ═══════════ Loading screen ═══════════ -->
+<div class="loader" id="loader">
+  <div class="loader-inner">
+    <div class="loader-title">PicMerge</div>
+    <div class="loader-spinner"></div>
+    <div class="loader-progress"><div class="loader-progress-fill" id="loaderProgressFill"></div></div>
+    <div class="loader-text" id="loaderText">Loading 0%</div>
+  </div>
+</div>
 
 <!-- ═══════════ Wheel screen ═══════════ -->
 <div class="screen wheel-screen active" id="wheelScreen">
@@ -690,18 +1029,21 @@
               <line x1="150" y1="150" x2="10" y2="150"/>
               <line x1="150" y1="150" x2="80.0" y2="28.76"/>
             </g>
-            <text class="wedge-icon" x="150" y="65">🗼</text>
-            <text class="wedge-label" x="150" y="92">PARIS</text>
-            <text class="wedge-icon" x="223" y="118">🌸</text>
-            <text class="wedge-label" x="223" y="144">TOKYO</text>
-            <text class="wedge-icon" x="223" y="180">🏛️</text>
-            <text class="wedge-label" x="223" y="206">ROME</text>
-            <text class="wedge-icon" x="150" y="220">🏝️</text>
-            <text class="wedge-label" x="150" y="246">BALI</text>
-            <text class="wedge-icon" x="77" y="180">🌆</text>
-            <text class="wedge-label" x="77" y="206">NYC</text>
-            <text class="wedge-icon" x="77" y="118">🕌</text>
-            <text class="wedge-label" x="77" y="142">MARRAKECH</text>
+            <!-- Each wedge: icon at radius 78 (just outside the r=55 hub),
+                 label at radius 100 (further toward the outer rim where the
+                 wedge is widest). Both centered on the wedge's bisector. -->
+            <text class="wedge-label" x="150" y="50">PARIS</text>
+            <text class="wedge-icon"  x="150" y="80">🗼</text>
+            <text class="wedge-label" x="237" y="100">TOKYO</text>
+            <text class="wedge-icon"  x="218" y="115">🌸</text>
+            <text class="wedge-label" x="237" y="205">ROME</text>
+            <text class="wedge-icon"  x="218" y="193">🏛️</text>
+            <text class="wedge-label" x="150" y="255">BALI</text>
+            <text class="wedge-icon"  x="150" y="225">🏝️</text>
+            <text class="wedge-label" x="63"  y="205">NYC</text>
+            <text class="wedge-icon"  x="82"  y="193">🌆</text>
+            <text class="wedge-label" x="63"  y="100">MARRAKECH</text>
+            <text class="wedge-icon"  x="82"  y="115">🕌</text>
           </g>
         </svg>
         <svg class="hub-wrap" viewBox="0 0 300 300"
@@ -712,6 +1054,19 @@
             <text class="hub-text" x="150" y="158" font-size="26">SPIN!</text>
           </g>
           <circle class="hub-button" id="spinBtn" cx="150" cy="150" r="55" style="pointer-events:auto;"/>
+        </svg>
+        <svg class="charge-ring" viewBox="0 0 300 300" id="chargeRing">
+          <defs>
+            <linearGradient id="chargeGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%"  stop-color="#fff6c0"/>
+              <stop offset="100%" stop-color="#ffb000"/>
+            </linearGradient>
+          </defs>
+          <!-- Track (faint) -->
+          <circle cx="150" cy="150" r="68" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="8"/>
+          <!-- Fill arc — dashoffset animates from 427 (empty) to 0 (full) -->
+          <circle id="chargeArc" cx="150" cy="150" r="68"
+                  stroke-dasharray="427" stroke-dashoffset="427"/>
         </svg>
       </div>
       <div class="deco deco-plane">✈</div>
@@ -727,6 +1082,11 @@
 
 <!-- ═══════════ Reveal card (transient, above wheel) ═══════════ -->
 <div class="reveal-card" id="revealCard">
+  <div class="reveal-flash"></div>
+  <div class="reveal-stamp">
+    <div class="reveal-stamp-line1">PARIS</div>
+    <div class="reveal-stamp-line2">PAR AVION</div>
+  </div>
   <div>
     <div class="reveal-icon" id="revealIcon">🗼</div>
     <div class="reveal-city" id="revealCity">PARIS!</div>
@@ -764,6 +1124,16 @@
   </div>
 </div>
 
+<!-- ═══════════ Tap hint (for first-moves assist) ═══════════ -->
+<div class="tap-hint" id="tapHint" aria-hidden="true">
+  <div class="hint-ring"></div>
+  <div class="hint-hand">
+    <svg viewBox="0 0 24 24" fill="white">
+      <path d="M9 11.5V5a2 2 0 1 1 4 0v6.5l1-1a2 2 0 1 1 2.83 2.83l-1 1a2 2 0 1 1 2.83 2.83l-1 1A6 6 0 0 1 6 14V6.5a1.5 1.5 0 1 1 3 0V11.5z"/>
+    </svg>
+  </div>
+</div>
+
 <!-- ═══════════ Win overlay ═══════════ -->
 <div class="overlay" id="winOverlay">
   <div class="overlay-stars" id="overlayStars"></div>
@@ -774,8 +1144,9 @@
       <div class="ribbon-main">Postcard Saved!</div>
     </div>
     <div class="photo-frame">
+      <div class="photo-stamp">AIR MAIL</div>
       <div class="coin-reward">
-        <span class="coin">$</span><span>+50</span>
+        <span class="coin">$</span><span>+<span id="coinCount">0</span></span>
       </div>
     </div>
     <button class="cta-continue" id="ctaBtn">UNLOCK 100+ CITIES</button>
@@ -804,9 +1175,11 @@
     function unlock() {
       ensureCtx();
       if (ctx && ctx.state === 'suspended') ctx.resume();
-      // Background music disabled — SFX only until we pick a track.
+      // Background music intentionally disabled — SFX-only for now.
       // if (!musicStarted && ctx) { startMusic(); musicStarted = true; }
     }
+    // No-op when music is disabled; kept on the public API for future re-enable.
+    function duckMusic() {}
     function tone(freq, dur, { type = 'sine', attack = 0.005, gain = 0.25, bus = sfxBus } = {}) {
       if (!ctx || muted) return;
       const osc = ctx.createOscillator(), env = ctx.createGain();
@@ -833,6 +1206,47 @@
       [659.25, 783.99, 987.77, 1318.51].forEach((f, i) =>
         setTimeout(() => tone(f, 0.4, { type: 'triangle', gain: 0.25 }), i * 90));
     }
+    // Rising whoosh during the spin button hold; pitch sweeps upward over
+    // ~1.2s to match the charge gauge filling.
+    function playCharge() {
+      if (!ctx || muted) return;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 110;
+      env.gain.value = 0;
+      osc.connect(env); env.connect(sfxBus);
+      const t = ctx.currentTime;
+      env.gain.linearRampToValueAtTime(0.10, t + 0.04);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 1.25);
+      osc.frequency.exponentialRampToValueAtTime(620, t + 1.2);
+      osc.start(t); osc.stop(t + 1.3);
+    }
+    // Wheel lands: deep thud + bright chime layered.
+    function playLand() {
+      tone(80,      0.18, { type: 'sine',     gain: 0.28, attack: 0.002 });
+      tone(140,     0.12, { type: 'triangle', gain: 0.18, attack: 0.002 });
+      setTimeout(() => tone(1318.51, 0.22, { type: 'triangle', gain: 0.26 }), 70);
+      setTimeout(() => tone(1760,    0.18, { type: 'triangle', gain: 0.20 }), 150);
+    }
+    // CTA reveal: rising whoosh + sparkle ding when the Play button arrives.
+    function playCtaReveal() {
+      if (!ctx || muted) return;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = 320;
+      env.gain.value = 0;
+      osc.connect(env); env.connect(sfxBus);
+      const t = ctx.currentTime;
+      env.gain.linearRampToValueAtTime(0.18, t + 0.04);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+      osc.frequency.exponentialRampToValueAtTime(900, t + 0.32);
+      osc.start(t); osc.stop(t + 0.36);
+      setTimeout(() => tone(1318.51, 0.22, { type: 'triangle', gain: 0.22 }), 120);
+      setTimeout(() => tone(1760,    0.18, { type: 'triangle', gain: 0.18 }), 220);
+    }
+    // Soft tick for the coin count-up animation.
+    function playCount() { tone(880, 0.04, { type: 'square', gain: 0.06 }); }
     function startMusic() {
       if (!ctx) return;
       const chords = [
@@ -879,8 +1293,11 @@
       }
     }
     function isMuted() { return muted; }
-    return { unlock, playPickup, playDrop, playMerge, playWin, playSpinTick, playReveal, setMuted, isMuted };
+    return { unlock, playPickup, playDrop, playMerge, playWin, playSpinTick, playReveal, playCharge, playLand, playCtaReveal, playCount, duckMusic, setMuted, isMuted };
   })();
+
+  // Audio still needs unlocking on first gesture (procedural SFX use Web Audio).
+  document.addEventListener('pointerdown', () => audio.unlock(), { once: true });
 
   // ──────────────────────────────────────────────────────────────
   //  Wheel
@@ -919,52 +1336,179 @@
   }
 
   let spinning = false;
-  spinBtn.addEventListener('click', () => {
+
+  // ─── HOLD-TO-CHARGE SPIN ───
+  // pointerdown → start filling the charge gauge; pointerup → spin with
+  // power proportional to how long they held. Tap-only still spins.
+  const chargeRing = document.getElementById('chargeRing');
+  const chargeArc  = document.getElementById('chargeArc');
+  const CHARGE_CIRCUMFERENCE = 427;   // 2π · r where r = 68
+  const MAX_HOLD_MS = 1200;
+  const MIN_ROTATIONS = 3;
+  const MAX_ROTATIONS = 6;
+
+  let chargeStart = 0;
+  let chargeRaf   = null;
+  let charging    = false;
+
+  function updateChargeArc() {
+    const held = Math.min(MAX_HOLD_MS, performance.now() - chargeStart);
+    const t = held / MAX_HOLD_MS;
+    chargeArc.style.strokeDashoffset = CHARGE_CIRCUMFERENCE * (1 - t);
+    if (charging) chargeRaf = requestAnimationFrame(updateChargeArc);
+  }
+
+  function beginCharge(e) {
+    if (spinning || charging) return;
+    e.preventDefault();
+    charging = true;
+    chargeStart = performance.now();
+    audio.unlock();
+    chargeRing.classList.add('active');
+    wheelSvg.classList.add('charging');
+    chargeArc.style.strokeDashoffset = CHARGE_CIRCUMFERENCE;  // reset to empty
+    chargeRaf = requestAnimationFrame(updateChargeArc);
+    audio.playCharge && audio.playCharge();
+  }
+
+  function releaseCharge() {
+    if (!charging) return;
+    charging = false;
+    if (chargeRaf) { cancelAnimationFrame(chargeRaf); chargeRaf = null; }
+    chargeRing.classList.remove('active');
+    wheelSvg.classList.remove('charging');
+    const held = Math.min(MAX_HOLD_MS, performance.now() - chargeStart);
+    const level = held / MAX_HOLD_MS;  // 0..1
+    spin(level);
+  }
+
+  function spin(chargeLevel) {
     if (spinning) return;
     spinning = true;
-    audio.unlock();
     hubPulse.classList.add('stopped');
 
-    // Many full rotations + small random jitter inside the target wedge.
-    const wedgeDeg = 60;
-    const jitter = (Math.random() * 18 - 9);
-    const finalDeg = 5 * 360 + (-TARGET * wedgeDeg) + jitter;
-    wheelSvg.classList.add('spinning');
-    wheelSvg.style.transform = `rotate(${finalDeg}deg)`;
+    // Rotations must be an INTEGER so the wheel ends on a whole turn —
+    // a fractional count (e.g. 4.5) lands 180° off-target, putting Bali
+    // under the pointer instead of Paris.
+    const rotations = Math.floor(MIN_ROTATIONS + (MAX_ROTATIONS - MIN_ROTATIONS) * chargeLevel);
+    const spinMs    = 3200 + 1500 * chargeLevel;  // longer with more charge
+    const wedgeDeg  = 60;
+    // Jitter stays well inside Paris's 60° wedge (±7° from center).
+    const jitter    = (Math.random() * 14 - 7);
+    const finalDeg  = rotations * 360 + (-TARGET * wedgeDeg) + jitter;
 
-    // Tick sound that slows down to match the wheel's deceleration
+    // Hard-reset to rotate(0) instantly so the transition has a clean start.
+    // (Removing .charging mid-animation can leave a fuzzy computed transform
+    //  that the new transition would interpolate FROM, not from zero.)
+    wheelSvg.style.transition = 'none';
+    wheelSvg.style.transform  = 'rotate(0deg)';
+    // Force browser to commit the reset before applying the spin transition.
+    void wheelSvg.offsetWidth;
+    wheelSvg.style.transition = `transform ${spinMs}ms cubic-bezier(0.18, 0.62, 0.18, 1)`;
+    // Apply target on the next frame so the transition reliably activates.
+    requestAnimationFrame(() => {
+      wheelSvg.style.transform = `rotate(${finalDeg}deg)`;
+    });
+
+    // Tick cadence scales with charge — beefier spin = denser ticks early.
     const tickStart = performance.now();
-    const tickDur = 4200;
-    function scheduleTick(prev) {
+    function scheduleTick() {
       const elapsed = performance.now() - tickStart;
-      if (elapsed >= tickDur) return;
+      if (elapsed >= spinMs) return;
       audio.playSpinTick();
-      // Increase delay over time (ease-out feel)
-      const t = elapsed / tickDur; // 0..1
-      const delay = 40 + t * t * 320;
+      const t = elapsed / spinMs;
+      const delay = 36 + t * t * (320 - 80 * chargeLevel);
       setTimeout(scheduleTick, delay);
     }
     scheduleTick();
 
+    // Landing — fires when the spin transition completes. Bundle all the
+    // drama: screen shake + hub flash + lights bright pulse + golden burst
+    // at the pointer, then a beat later trigger the reveal card.
     setTimeout(() => {
-      // Show city reveal
-      const city = CITIES[TARGET];
-      revealCity.textContent = city.name + '!';
-      revealIcon.textContent = city.icon;
-      revealCard.classList.add('show');
-      audio.playReveal();
-
-      // After a beat, fade wheel screen out, fade puzzle screen in,
-      // start the puzzle game.
+      landingDrama(chargeLevel);
       setTimeout(() => {
-        revealCard.classList.remove('show');
-        wheelScreen.classList.remove('active');
-        puzzleScreen.classList.add('active');
-        // Initialize the puzzle now that it's visible
-        startPuzzle();
-      }, 1800);
-    }, 4400);
-  });
+        const city = CITIES[TARGET];
+        revealCity.textContent = city.name + '!';
+        revealIcon.textContent = city.icon;
+        revealCard.classList.add('show');
+        audio.playReveal();
+        // Burst particles at the city text's settle point (~200ms in).
+        setTimeout(() => burstAtElement(revealCity, 20), 260);
+        setTimeout(() => {
+          revealCard.classList.remove('show');
+          wheelScreen.classList.remove('active');
+          puzzleScreen.classList.add('active');
+          startPuzzle();
+        }, 1800);
+      }, 380);
+    }, spinMs + 80);
+  }
+
+  // Generic sparkle burst centered on a DOM element. Used for both the
+  // wheel landing and the reveal-card city explosion.
+  function burstAtElement(el, count) {
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top  + r.height / 2;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const dist = 90 + Math.random() * 80;
+      s.style.left = (cx - 5) + 'px';
+      s.style.top  = (cy - 5) + 'px';
+      s.style.width = '10px';
+      s.style.height = '10px';
+      s.style.background = i % 3 === 0 ? '#fff4c5' : '#ffd24c';
+      s.style.setProperty('--end', `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`);
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 950);
+    }
+  }
+
+  // Particle burst at the wheel pointer when the wheel lands.
+  function landingDrama(chargeLevel) {
+    audio.playLand();
+    wheelScreen.classList.remove('shake');
+    void wheelScreen.offsetWidth;
+    wheelScreen.classList.add('shake');
+    setTimeout(() => wheelScreen.classList.remove('shake'), 280);
+
+    hubPulse.classList.remove('landed');
+    void hubPulse.offsetWidth;
+    hubPulse.classList.add('landed');
+
+    lightsRing.classList.remove('landed');
+    void lightsRing.offsetWidth;
+    lightsRing.classList.add('landed');
+    setTimeout(() => lightsRing.classList.remove('landed'), 520);
+
+    // Golden + cream particle burst at the wheel pointer (top of wheel).
+    const pointerRect = document.querySelector('.wheel-pointer').getBoundingClientRect();
+    const cx = pointerRect.left + pointerRect.width / 2;
+    const cy = pointerRect.top + pointerRect.height;  // tip of pointer
+    const count = 16 + Math.round(chargeLevel * 12);
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
+      const dist = 70 + Math.random() * (90 + chargeLevel * 60);
+      s.style.left = (cx - 5) + 'px';
+      s.style.top  = (cy - 5) + 'px';
+      s.style.width = '10px';
+      s.style.height = '10px';
+      s.style.background = i % 3 === 0 ? '#fff4c5' : '#ffd24c';
+      s.style.setProperty('--end', `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`);
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 950);
+    }
+  }
+
+  spinBtn.addEventListener('pointerdown', beginCharge);
+  spinBtn.addEventListener('pointerup', releaseCharge);
+  spinBtn.addEventListener('pointercancel', releaseCharge);
+  spinBtn.addEventListener('pointerleave', releaseCharge);
 
   // ──────────────────────────────────────────────────────────────
   //  Puzzle game
@@ -977,6 +1521,7 @@
   const undoBtn = document.getElementById('undoBtn');
   const ctaBtn = document.getElementById('ctaBtn');
   const overlayStars = document.getElementById('overlayStars');
+  const tapHint = document.getElementById('tapHint');
 
   let tiles = [];
   let history = [];
@@ -987,6 +1532,8 @@
   let puzzleStarted = false;
   let hintsLeft = 3;
   let undosLeft = 3;
+  let assistMovesLeft = 3;
+  let lastPickSlot = -1;
   const HINTS_START = 3;
   const UNDOS_START = 3;
   const DRAG_THRESHOLD = 6;
@@ -999,6 +1546,73 @@
     hintBtn.classList.toggle('spent', hintsLeft <= 0);
     undoBtn.classList.toggle('spent', undosLeft <= 0);
   }
+
+  // ── Assist: pulses on which tile to pick & where to drop (first 3 moves) ──
+  function positionHintOnTile(el) {
+    if (!el || !tapHint) return;
+    const r = el.getBoundingClientRect();
+    tapHint.style.left = (r.left + r.width / 2 - 30) + 'px';
+    tapHint.style.top  = (r.top  + r.height / 2 - 30) + 'px';
+  }
+  function showHint() { if (tapHint) tapHint.classList.add('shown'); }
+  function hideHint() {
+    if (!tapHint) return;
+    tapHint.classList.remove('shown', 'demo-move');
+  }
+  function clearAssistClasses() {
+    grid.querySelectorAll('.tile.assist-pickup, .tile.assist-drop').forEach(t => {
+      t.classList.remove('assist-pickup', 'assist-drop');
+    });
+  }
+  function applyAssist() {
+    clearAssistClasses();
+    if (assistMovesLeft <= 0 || solved) {
+      hideHint();
+      lastPickSlot = -1;
+      return;
+    }
+    // Gather misplaced slots; prefer a 2-cycle (cleanest swap demo).
+    const wrongSlots = [];
+    for (let i = 0; i < TOTAL; i++) if (tiles[i] !== i) wrongSlots.push(i);
+    if (wrongSlots.length === 0) {
+      hideHint();
+      lastPickSlot = -1;
+      return;
+    }
+    let pickSlot = wrongSlots[0];
+    for (const s of wrongSlots) {
+      const dest = tiles[s];
+      if (tiles[dest] === s) { pickSlot = s; break; }
+    }
+    const dropSlot = tiles[pickSlot];
+    const pickEl = getTileEl(pickSlot);
+    const dropEl = getTileEl(dropSlot);
+    if (pickEl) pickEl.classList.add('assist-pickup');
+    if (dropEl) dropEl.classList.add('assist-drop');
+    lastPickSlot = pickSlot;
+    if (pickEl) {
+      positionHintOnTile(pickEl);
+      if (tapHint) {
+        tapHint.classList.remove('demo-move');
+        // First 2 assists: hand travels from pickup → drop to demonstrate.
+        if (assistMovesLeft >= 2 && dropEl) {
+          const r1 = pickEl.getBoundingClientRect();
+          const r2 = dropEl.getBoundingClientRect();
+          const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
+          const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
+          tapHint.style.setProperty('--dx', dx + 'px');
+          tapHint.style.setProperty('--dy', dy + 'px');
+          void tapHint.offsetWidth;
+          tapHint.classList.add('demo-move');
+        }
+      }
+      showHint();
+    }
+  }
+  window.addEventListener('resize', () => {
+    if (lastPickSlot < 0) return;
+    applyAssist();
+  });
 
   function bgPositionFor(c) {
     const col = c % GRID, row = Math.floor(c / GRID);
@@ -1119,6 +1733,9 @@
       try { el.setPointerCapture(pid); } catch (_) {}
       el.classList.add('pressing');
       audio.playPickup();
+      // Hide assist hand + clear pulse classes so drag visuals win.
+      hideHint();
+      clearAssistClasses();
     });
     el.addEventListener('pointermove', (e) => {
       if (e.pointerId !== pid) return;
@@ -1241,6 +1858,23 @@
       void grid.offsetWidth;
       touched.forEach(s => { getTileEl(s).style.transition = ''; });
       updateMergeState();
+      // Near-solve: if only 1 tile is misplaced, flash it + its target green.
+      const wrongCount = tiles.reduce((acc, c, i) => acc + (c !== i ? 1 : 0), 0);
+      if (wrongCount === 1) {
+        const wrongSlot = tiles.findIndex((c, i) => c !== i);
+        const a = getTileEl(wrongSlot);
+        const b = getTileEl(tiles[wrongSlot]);
+        [a, b].forEach(t => {
+          if (!t) return;
+          t.classList.remove('near-solve-pulse');
+          void t.offsetWidth;
+          t.classList.add('near-solve-pulse');
+          setTimeout(() => t.classList.remove('near-solve-pulse'), 900);
+        });
+      }
+      // Decrement the assist budget and re-apply on next-best move.
+      assistMovesLeft = Math.max(0, assistMovesLeft - 1);
+      applyAssist();
       animating = false;
       if (isSolved()) handleWin();
     }, 240);
@@ -1250,12 +1884,38 @@
   function handleWin() {
     solved = true;
     grid.querySelectorAll('.tile').forEach(t => t.classList.add('locked'));
+    hideHint();
+    clearAssistClasses();
     audio.playWin();
     grid.classList.add('won');
     burstSparkles();
     startConfetti(48);
     spawnOverlayStars(28);
-    setTimeout(() => winOverlay.classList.add('show'), 650);
+    setTimeout(() => {
+      winOverlay.classList.add('show');
+      // Coin count-up timed to the badgePop entry (overlay+650ms cascade slot)
+      setTimeout(() => animateCoinCount(50, 700), 650);
+      // CTA reveal SFX timed to its slide-in (overlay+950ms)
+      setTimeout(() => audio.playCtaReveal(), 950);
+    }, 650);
+  }
+  // Tick the visible coin count up to `target` over `duration` ms.
+  function animateCoinCount(target, duration) {
+    const el = document.getElementById('coinCount');
+    if (!el) return;
+    const start = performance.now();
+    let lastTickAt = 0;
+    function step(now) {
+      const t = Math.min(1, (now - start) / duration);
+      // ease-out cubic so the count slows as it nears target
+      const eased = 1 - Math.pow(1 - t, 3);
+      const v = Math.round(target * eased);
+      el.textContent = String(v);
+      // throttle tick SFX to roughly every 90ms
+      if (now - lastTickAt > 80 && t < 1) { audio.playCount(); lastTickAt = now; }
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   }
   function burstSparkles() {
     const rect = grid.getBoundingClientRect();
@@ -1274,7 +1934,8 @@
     }
   }
   function startConfetti(n) {
-    const colors = ['#FFC73C', '#F8C8DF', '#ff8e42', '#6dd053', '#a18cf0', '#ffffff'];
+    // Brand-cohesive palette: gold, cream, red outline accent.
+    const colors = ['#ffc940', '#fff4c5', '#c92c2c'];
     for (let i = 0; i < n; i++) {
       setTimeout(() => {
         const c = document.createElement('div');
@@ -1346,6 +2007,57 @@
       window.open(STORE_URL, '_blank', 'noopener,noreferrer');
     }
   });
+  // ── Asset preloader (critical blocks loader; eager loads in background) ──
+  const CRITICAL = ['puzzle-paris.webp'];
+  const EAGER = [
+    'picmerge-dp.webp',
+    'eiffel-ad.webp',
+  ];
+  (() => {
+    const loader = document.getElementById('loader');
+    const fillEl = document.getElementById('loaderProgressFill');
+    const textEl = document.getElementById('loaderText');
+    let loaded = 0;
+    let started = false;
+    function update() {
+      const pct = Math.round((loaded / CRITICAL.length) * 100);
+      if (fillEl) fillEl.style.width = pct + '%';
+      if (textEl) textEl.textContent = 'Loading ' + pct + '%';
+      if (loaded >= CRITICAL.length && !started) {
+        started = true;
+        setTimeout(hideLoader, 250);
+      }
+    }
+    function hideLoader() {
+      if (loader) loader.classList.add('hidden');
+      setTimeout(() => { if (loader && loader.parentNode) loader.remove(); }, 500);
+    }
+    function preload(url, blocking) {
+      let done = false;
+      const finish = () => {
+        if (done) return; done = true;
+        if (blocking) { loaded++; update(); }
+      };
+      const ext = url.split('.').pop().toLowerCase();
+      if (ext === 'mp3' || ext === 'wav' || ext === 'ogg') {
+        const a = new Audio();
+        a.preload = 'auto';
+        a.addEventListener('canplaythrough', finish, { once: true });
+        a.addEventListener('error', finish, { once: true });
+        if (blocking) setTimeout(finish, 6000);
+        a.src = url;
+      } else {
+        const img = new Image();
+        img.onload = finish;
+        img.onerror = finish;
+        img.src = url;
+      }
+    }
+    CRITICAL.forEach(u => preload(u, true));
+    EAGER.forEach(u => preload(u, false));
+    update();
+  })();
+
   function startPuzzle() {
     if (puzzleStarted) return;
     puzzleStarted = true;
@@ -1355,12 +2067,20 @@
     prevMergeKeys = new Set();
     hintsLeft = HINTS_START;
     undosLeft = UNDOS_START;
+    assistMovesLeft = 3;
     updateToolBadges();
     grid.classList.remove('won');
     suppressMergeFx = true;
     shuffle();
     render();
     suppressMergeFx = false;
+    // Trigger the staggered fly-in animation, then strip the class once
+    // the longest delay+duration completes so it doesn't re-fire on resize.
+    grid.classList.add('entering');
+    setTimeout(() => grid.classList.remove('entering'), 1100);
+    // Defer the assist pass until after the fly-in settles so the tap-hint
+    // is positioned over the final tile rects (not the mid-flight ones).
+    setTimeout(() => applyAssist(), 1150);
   }
 })();
 </script>
