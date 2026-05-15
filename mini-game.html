@@ -2150,20 +2150,8 @@ function playVO(clip) {
 // FIRST-GESTURE HANDLER
 //   • unlocks audio (Web Audio requires a user gesture)
 //   • plays intro chime + voiceover
-//   • requests fullscreen (silently no-ops on iOS / when blocked)
+//   • primes voOutro so it can play later when activation has expired
 // ============================================================
-function requestFullscreenOnce() {
-  const el = document.documentElement;
-  const req = el.requestFullscreen
-           || el.webkitRequestFullscreen
-           || el.mozRequestFullScreen
-           || el.msRequestFullscreen;
-  if (!req) return;  // not supported (iOS Safari before 16.4 for non-video)
-  try {
-    const ret = req.call(el);
-    if (ret && typeof ret.catch === 'function') ret.catch(() => {});
-  } catch (_) { /* permission denied or already fullscreen */ }
-}
 document.addEventListener('pointerdown', () => {
   audio.unlock();
   audio.playIntro();
@@ -2187,7 +2175,6 @@ document.addEventListener('pointerdown', () => {
       voOutro.muted = false;
     }
   } catch (_) { voOutro.muted = false; }
-  requestFullscreenOnce();
 }, { once: true });
 
 // ============================================================
